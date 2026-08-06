@@ -23,8 +23,7 @@ export async function GET() {
   if (!supportsRepoImages()) {
     return NextResponse.json(
       {
-        error:
-          "Image builds are only available when SANDBOX_PROVIDER=modal, vercel, or opencomputer",
+        error: "Image builds are not available",
       },
       { status: 501 }
     );

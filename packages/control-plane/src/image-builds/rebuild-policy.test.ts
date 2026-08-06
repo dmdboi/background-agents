@@ -13,7 +13,7 @@ function row(overrides: Partial<ImageBuildRecordView> = {}): ImageBuildRecordVie
     id: "build-1",
     scope_kind: "repo",
     scope_id: "acme/web",
-    provider: "modal",
+    provider: "cloudflare",
     status: "ready",
     repositories_fingerprint: "fp-current",
     repository_shas: JSON.stringify([{ repoOwner: "acme", repoName: "web", baseSha: "abc123" }]),
@@ -27,33 +27,29 @@ function row(overrides: Partial<ImageBuildRecordView> = {}): ImageBuildRecordVie
 
 describe("evaluateImageBuildRebuildPolicy", () => {
   it("skips an active build for the active provider", () => {
-    expect(evaluateImageBuildRebuildPolicy(unit, [row({ status: "building" })], "modal")).toEqual({
+    expect(
+      evaluateImageBuildRebuildPolicy(unit, [row({ status: "building" })], "cloudflare")
+    ).toEqual({
       type: "skip",
       reason: "building",
     });
   });
 
   it("rebuilds for a missing fingerprint, incompatible runtime, or malformed provenance", () => {
-    expect(evaluateImageBuildRebuildPolicy(unit, [], "modal")).toMatchObject({
+    expect(evaluateImageBuildRebuildPolicy(unit, [], "cloudflare")).toMatchObject({
       type: "rebuild",
       reason: "missing_image",
     });
     expect(
-      evaluateImageBuildRebuildPolicy(unit, [row({ runtime_version: "v55-runtime" })], "modal")
+      evaluateImageBuildRebuildPolicy(unit, [row({ runtime_version: "v55-runtime" })], "cloudflare")
     ).toMatchObject({ type: "rebuild", reason: "runtime_incompatible" });
     expect(
-      evaluateImageBuildRebuildPolicy(unit, [row({ repository_shas: "not-json" })], "modal")
+      evaluateImageBuildRebuildPolicy(unit, [row({ repository_shas: "not-json" })], "cloudflare")
     ).toMatchObject({ type: "rebuild", reason: "invalid_provenance" });
   });
 
-  it("ignores ready images from another provider", () => {
-    expect(
-      evaluateImageBuildRebuildPolicy(unit, [row({ provider: "vercel" })], "modal")
-    ).toMatchObject({ type: "rebuild", reason: "missing_image" });
-  });
-
   it("defers a compatible image to branch-head comparison", () => {
-    const decision = evaluateImageBuildRebuildPolicy(unit, [row()], "modal");
+    const decision = evaluateImageBuildRebuildPolicy(unit, [row()], "cloudflare");
     expect(decision.type).toBe("check_branches");
     if (decision.type === "check_branches") {
       expect(decision.recordedShas.get("acme/web")).toBe("abc123");

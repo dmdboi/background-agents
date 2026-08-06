@@ -14,7 +14,6 @@ import { createLogger } from "../logger";
 import type { RequestContext } from "../routes/shared";
 import type { Env } from "../types";
 import type { ImageBuildScope } from "./model";
-import { resolveImageBuildProvider } from "./provider-policy";
 import { createImageBuildWorkflowFromEnv } from "./workflow";
 
 const logger = createLogger("image-builds:save-hooks");
@@ -30,8 +29,6 @@ export function scheduleImageBuildOnSave(
   scope: ImageBuildScope,
   ctx: RequestContext
 ): void {
-  if (!resolveImageBuildProvider(env.SANDBOX_PROVIDER)) return;
-
   const task = createImageBuildWorkflowFromEnv(env, ctx.db)
     .triggerBuildIfStale(scope, { request_id: ctx.request_id, trace_id: ctx.trace_id })
     .then((result) => {

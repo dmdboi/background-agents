@@ -85,7 +85,7 @@ SERVICE_AUTH_SECRET=your_web_service_sig1_secret
 
 The web app is a framework-free BFF. It signs requests with `SERVICE_AUTH_SECRET`, forwards only
 Better Auth's opaque session cookie, and does not hold OAuth provider credentials or admission
-policy. Configure those on the control plane through Terraform; `/login` resolves the enabled
+policy. Configure those on the control plane's `wrangler.jsonc`; `/login` resolves the enabled
 provider set from that authority at request time.
 
 ### Development

@@ -39,7 +39,7 @@ strict cross-region lock.
                reaction │                                        │ DO / D1
                         v                                        v
                  ┌──────────────┐                         ┌──────────────┐
-                 │   GitHub     │  <─── gh CLI ─────────  │    Modal     │
+                 │   GitHub     │  <─── gh CLI ─────────  │  Cloudflare  │
                  │   REST API   │                         │   Sandbox    │
                  └──────────────┘                         └──────────────┘
 ```
@@ -56,12 +56,11 @@ Key design decisions:
 
 ## Deployment
 
-The bot is deployed via Terraform as a standalone Cloudflare Worker alongside the existing workers.
-
-**Two-phase deployment** (same pattern as the Slack bot):
-
-1. Deploy with `enable_service_bindings = false` (creates the worker)
-2. Set `enable_service_bindings = true` and apply again (adds the `CONTROL_PLANE` binding)
+The bot is deployed via `wrangler` as a standalone Cloudflare Worker, configured by
+`packages/github-bot/wrangler.toml` and built/deployed by `scripts/setup.sh` (or manually with
+`npm run build -w @open-inspect/github-bot && wrangler deploy` from `packages/github-bot`). The
+`CONTROL_PLANE` service binding is declared statically in `wrangler.toml` — no multi-phase deploy is
+needed.
 
 ### Environment Bindings
 
@@ -89,13 +88,13 @@ The existing GitHub App needs these additions:
 
 **Webhook URL**: `https://open-inspect-github-bot-{suffix}.{account}.workers.dev/webhooks/github`
 
-**Webhook secret**: Must match `GITHUB_WEBHOOK_SECRET` in the Terraform configuration.
+**Webhook secret**: Must match the `GITHUB_WEBHOOK_SECRET` secret pushed by `scripts/setup.sh`.
 
 ### Sandbox Prerequisites
 
 For the agent to interact with GitHub from the sandbox, these prerequisites must be met:
 
-1. **`gh` CLI** installed in the sandbox image (`packages/modal-infra/src/images/base.py`)
+1. **`gh` CLI** installed in the sandbox image (`packages/control-plane/Dockerfile`)
 2. **Git credential helper** configured in the sandbox image/runtime so git operations can request
    short-lived SCM credentials from the control plane
 

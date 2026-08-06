@@ -1,31 +1,183 @@
-// Test-only config. Production deployment is managed via Terraform.
+// Production-capable wrangler config for the control-plane Worker.
+//
+// This replaces the Terraform module `cloudflare-worker` + workers-control-plane.tf
+// + service-auth.tf. Names below are generic/parameterizable — swap
+// "open-inspect" for your own deployment name if you fork this, or run
+// `scripts/setup.sh` which provisions the resources referenced here and
+// fills in the real ids.
+//
+// Placeholder values (ids, urls) MUST be replaced before `wrangler deploy`.
+// Secrets are NOT declared here — see the "Secrets" comment block at the
+// bottom and `scripts/setup.sh`.
 {
-  "name": "open-inspect-control-plane-test",
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "open-inspect-control-plane",
   "main": "src/index.ts",
   "compatibility_date": "2024-09-23",
   "compatibility_flags": ["nodejs_compat"],
+
+  // -------------------------------------------------------------------------
+  // Durable Objects
+  // -------------------------------------------------------------------------
   "durable_objects": {
     "bindings": [
       { "name": "SESSION", "class_name": "SessionDO" },
       { "name": "SCHEDULER", "class_name": "SchedulerDO" },
+      // Backs the `containers` block below — see @cloudflare/sandbox and
+      // packages/control-plane/src/sandbox/providers/cloudflare-provider.ts.
+      // Binding name must be SANDBOX (see Env.SANDBOX in src/types.ts).
+      { "name": "SANDBOX", "class_name": "Sandbox" },
     ],
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["SessionDO"] },
     { "tag": "v2", "new_sqlite_classes": ["SchedulerDO"] },
+    { "tag": "v3", "new_sqlite_classes": ["Sandbox"] },
   ],
+
+  // -------------------------------------------------------------------------
+  // Containers — sandbox execution image (Cloudflare Sandbox SDK)
+  // -------------------------------------------------------------------------
+  "containers": [
+    {
+      "name": "open-inspect-sandbox",
+      "class_name": "Sandbox",
+      "image": "./Dockerfile",
+      // The Dockerfile COPYs packages/sandbox-runtime/, so the build context
+      // must be the repo root, not this directory (see Dockerfile header).
+      "image_build_context": "../..",
+      // Tune to expected concurrent-sandbox count for your deployment.
+      "max_instances": 100,
+      "instance_type": "standard-1",
+    },
+  ],
+
+  // -------------------------------------------------------------------------
+  // D1
+  // -------------------------------------------------------------------------
   "d1_databases": [
     {
       "binding": "DB",
+      // Replace with the id from `wrangler d1 create open-inspect` (setup.sh does this).
       "database_id": "00000000-0000-0000-0000-000000000000",
-      "database_name": "open-inspect-test",
+      "database_name": "open-inspect",
     },
   ],
-  "kv_namespaces": [{ "binding": "REPOS_CACHE", "id": "00000000000000000000000000000000" }],
+
+  // -------------------------------------------------------------------------
+  // KV
+  // -------------------------------------------------------------------------
+  "kv_namespaces": [
+    {
+      "binding": "REPOS_CACHE",
+      // Replace with the id from `wrangler kv namespace create REPOS_CACHE`.
+      "id": "00000000000000000000000000000000",
+    },
+  ],
+
+  // -------------------------------------------------------------------------
+  // R2
+  // -------------------------------------------------------------------------
   "r2_buckets": [
     {
       "binding": "MEDIA_BUCKET",
-      "bucket_name": "open-inspect-media-test",
+      "bucket_name": "open-inspect-media",
     },
   ],
+
+  // -------------------------------------------------------------------------
+  // Queues — image-build finalization (see src/image-builds/)
+  // -------------------------------------------------------------------------
+  "queues": {
+    "producers": [
+      {
+        "binding": "IMAGE_BUILD_FINALIZATION_QUEUE",
+        "queue": "open-inspect-image-build-finalization",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "open-inspect-image-build-finalization",
+        "dead_letter_queue": "open-inspect-image-build-finalization-dlq",
+        "max_batch_size": 1,
+        // Terraform's cloudflare_queue_consumer used max_wait_time_ms=1000;
+        // wrangler's config schema only exposes this in seconds.
+        "max_batch_timeout": 1,
+        "max_concurrency": 5,
+        "max_retries": 12,
+        "retry_delay": 15,
+      },
+    ],
+  },
+
+  // -------------------------------------------------------------------------
+  // Cron triggers — MUST match IMAGE_BUILD_SCHEDULER_CRON in
+  // src/image-builds/scheduler.ts ("7,37 * * * *"). The "* * * * *" trigger
+  // drives other per-minute scheduled work in the fetch/scheduled handler.
+  // -------------------------------------------------------------------------
+  "triggers": {
+    "crons": ["* * * * *", "7,37 * * * *"],
+  },
+
+  // -------------------------------------------------------------------------
+  // Service bindings — worker-to-worker calls (same account)
+  // -------------------------------------------------------------------------
+  "services": [
+    { "binding": "SLACK_BOT", "service": "open-inspect-slack-bot" },
+    { "binding": "LINEAR_BOT", "service": "open-inspect-linear-bot" },
+  ],
+
+  // -------------------------------------------------------------------------
+  // Plain vars — non-secret configuration. Fill in real values before
+  // deploying (setup.sh does not template these; edit by hand or fork).
+  // -------------------------------------------------------------------------
+  "vars": {
+    "WEB_APP_URL": "https://your-web-app.example.com",
+    "ALLOWED_USERS": "",
+    "ALLOWED_EMAIL_DOMAINS": "",
+    "ALLOWED_EMAILS": "",
+    "ALLOWED_GITHUB_ORGS": "",
+    "UNSAFE_ALLOW_ALL_USERS": "false",
+    "WORKER_URL": "https://open-inspect-control-plane.YOUR-SUBDOMAIN.workers.dev",
+    "DEPLOYMENT_NAME": "production",
+    "APP_NAME": "Open-Inspect",
+    "SANDBOX_INACTIVITY_TIMEOUT_MS": "1800000",
+    // Wildcard custom domain backing sandbox preview URLs (exposePort()).
+    // .workers.dev does not support the wildcard subdomain routing this
+    // needs — leave unset (codeServer/tunnel preview URLs are skipped with
+    // a warning) or point it at a domain you control.
+    "SANDBOX_PREVIEW_DOMAIN": "",
+    // Leave blank to disable the corresponding OAuth provider.
+    "GITHUB_CLIENT_ID": "",
+    "GOOGLE_CLIENT_ID": "",
+  },
+
+  "observability": {
+    "enabled": true,
+  },
+
+  // -------------------------------------------------------------------------
+  // Secrets — set with `wrangler secret put <NAME>`, never checked in.
+  // scripts/setup.sh generates and pushes the auto-generated ones and
+  // prompts for the operator-supplied ones. Full list:
+  //
+  // Auto-generated (scripts/setup.sh, `openssl rand -hex 32`):
+  //   BROWSER_AUTH_SECRET
+  //   TOKEN_ENCRYPTION_KEY
+  //   REPO_SECRETS_ENCRYPTION_KEY
+  //   IMAGE_CALLBACK_TOKEN_PEPPER
+  //   SERVICE_AUTH_SECRET_WEB
+  //   SERVICE_AUTH_SECRET_SLACK_BOT
+  //   SERVICE_AUTH_SECRET_GITHUB_BOT
+  //   SERVICE_AUTH_SECRET_LINEAR_BOT
+  //
+  // Operator-supplied (real credentials — scripts/setup.sh prompts for these):
+  //   GITHUB_APP_ID
+  //   GITHUB_APP_PRIVATE_KEY
+  //   GITHUB_APP_INSTALLATION_ID
+  //   GITHUB_CLIENT_SECRET            (only if GITHUB_CLIENT_ID is set)
+  //   GOOGLE_CLIENT_SECRET            (only if GOOGLE_CLIENT_ID is set)
+  //   SLACK_BOT_TOKEN                 (shared with slack-bot; enables slack-notify)
+  //   CLOUDFLARE_SANDBOX_CODE_SERVER_PASSWORD_SECRET  (HMAC key for code-server passwords)
+  // -------------------------------------------------------------------------
 }

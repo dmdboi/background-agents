@@ -406,10 +406,9 @@ describe("buildImageBuildCallbackEnv", () => {
 });
 
 describe("cross-plane env-key contract manifest", () => {
-  // Single source of the cross-plane contract; the Python halves (runtime
-  // constants, Modal's RESERVED_USER_ENV_KEYS) are pinned to the same file in
-  // packages/modal-infra/tests/test_build_sandbox_lifecycle.py. Tests-only
-  // consumption: the runtime constants stay as code.
+  // Single source of the cross-plane contract; the Python half (runtime
+  // constants) is pinned to the same file in packages/sandbox-runtime/tests/.
+  // Tests-only consumption: the runtime constants stay as code.
   const manifest = JSON.parse(
     readFileSync(
       new URL(
@@ -423,7 +422,6 @@ describe("cross-plane env-key contract manifest", () => {
     build_mode_env_var: string;
     execution_timeout_env_var: string;
     reserved_only_control_plane: string[];
-    reserved_only_modal: string[];
   };
 
   it("pins REPO_IMAGE_CALLBACK_ENV to the manifest by value", () => {
@@ -445,9 +443,5 @@ describe("cross-plane env-key contract manifest", () => {
     expect([...RESERVED_REPO_IMAGE_CALLBACK_ENV_KEYS].sort()).toEqual(
       [...Object.values(manifest.callback_env), ...manifest.reserved_only_control_plane].sort()
     );
-    // The Modal-only reserved key is scrubbed on the Python side, never here.
-    for (const key of manifest.reserved_only_modal) {
-      expect(RESERVED_REPO_IMAGE_CALLBACK_ENV_KEYS).not.toContain(key);
-    }
   });
 });

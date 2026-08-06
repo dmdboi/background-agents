@@ -111,62 +111,6 @@ jobs:
       - name: Run Ruff formatter check
         run: ruff format --check src/ tests/
 
-  lint-python:
-    name: Lint & Format (Python - modal-infra)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: packages/modal-infra
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-          cache: "pip"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ../sandbox-runtime
-          pip install -e ".[dev]"
-
-      - name: Run Ruff linter
-        run: ruff check src/
-
-      - name: Run Ruff formatter check
-        run: ruff format --check src/
-
-  typecheck-python:
-    name: TypeCheck (Python)
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: packages/modal-infra
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-          cache: "pip"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ../sandbox-runtime
-          pip install -e ".[dev]"
-
-      - name: Run MyPy
-        run: mypy src/
-        continue-on-error: true # Allow failures initially as types are added
-
   typecheck-python-sandbox-runtime:
     name: TypeCheck (Python - sandbox-runtime)
     runs-on: ubuntu-latest
@@ -328,29 +272,64 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
 
-  test-python:
-    name: Test (Python - modal-infra)
+  deploy:
+    name: Deploy (wrangler)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      [
+        lint-typescript,
+        typecheck-typescript,
+        build-web,
+        test-cp-unit,
+        test-cp-integration,
+        test-web,
+        test-bots,
+      ]
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [lint-python]
-    defaults:
-      run:
-        working-directory: packages/modal-infra
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
         with:
-          python-version: "3.12"
-          cache: "pip"
+          node-version: "22"
+          cache: "npm"
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e ../sandbox-runtime
-          pip install -e ".[dev]"
+        run: npm ci
 
-      - name: Run tests
-        run: pytest tests/ -v
+      - name: Restore generated secrets cache
+        # scripts/setup.sh generates a fixed set of internal secrets once
+        # (BROWSER_AUTH_SECRET, SERVICE_AUTH_SECRET_*, etc.) and caches them in
+        # a local .secrets file so re-running it doesn't rotate them. Terraform
+        # used to keep the equivalent (`random_password` resources) in its own
+        # state file across runs; this cache is the wrangler-only replacement.
+        # Losing this cache invalidates every existing session/cookie signed
+        # with the old values on the next deploy — worth a real secrets-store
+        # solution (e.g. a private GH Actions cache scope, or 1Password/Vault)
+        # rather than the actions/cache best-effort default for anything past
+        # early bring-up.
+        uses: actions/cache@v4
+        with:
+          path: .secrets
+          key: open-inspect-generated-secrets
+
+      - name: Deploy all workers
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GITHUB_APP_ID: ${{ secrets.OI_GITHUB_APP_ID }}
+          GITHUB_APP_PRIVATE_KEY: ${{ secrets.OI_GITHUB_APP_PRIVATE_KEY }}
+          GITHUB_APP_INSTALLATION_ID: ${{ secrets.OI_GITHUB_APP_INSTALLATION_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.OI_GITHUB_CLIENT_SECRET }}
+          GITHUB_WEBHOOK_SECRET: ${{ secrets.OI_GITHUB_WEBHOOK_SECRET }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.OI_GOOGLE_CLIENT_SECRET }}
+          SLACK_BOT_TOKEN: ${{ secrets.OI_SLACK_BOT_TOKEN }}
+          SLACK_SIGNING_SECRET: ${{ secrets.OI_SLACK_SIGNING_SECRET }}
+          LINEAR_WEBHOOK_SECRET: ${{ secrets.OI_LINEAR_WEBHOOK_SECRET }}
+          LINEAR_CLIENT_SECRET: ${{ secrets.OI_LINEAR_CLIENT_SECRET }}
+          LINEAR_API_KEY: ${{ secrets.OI_LINEAR_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.OI_ANTHROPIC_API_KEY }}
+        run: ./scripts/setup.sh

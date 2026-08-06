@@ -15,6 +15,10 @@ const logger = createLogger("worker");
 // Re-export Durable Objects for Cloudflare to discover
 export { SessionDO } from "./session/durable-object";
 export { SchedulerDO } from "./scheduler/durable-object";
+// The Sandbox DO backs the `containers` block in wrangler.jsonc (see
+// cloudflare-provider.ts) — Cloudflare only discovers container-backed DO
+// classes that are re-exported from the Worker entry point.
+export { Sandbox } from "@cloudflare/sandbox";
 
 /**
  * Worker fetch handler.

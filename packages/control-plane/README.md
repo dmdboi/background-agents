@@ -243,7 +243,7 @@ any child starting/running → `starting`/`running`; all terminal → `completed
 ### Prerequisites
 
 - Node.js 22+
-- Terraform (for deployment)
+- wrangler (for deployment)
 
 ### Setup
 
@@ -261,10 +261,11 @@ npm run build
 
 ### Deploy
 
-Deployment is managed via Terraform. See [terraform/README.md](../../terraform/README.md) for
-details.
+Deployment is managed via `wrangler`, configured by `wrangler.jsonc` in this package. See
+[scripts/setup.sh](../../scripts/setup.sh) for the full provisioning-and-deploy flow.
 
-All secrets and environment variables are configured through Terraform's `terraform.tfvars` file.
+All secrets and environment variables are configured through `wrangler.jsonc` (plain vars/bindings)
+and `wrangler secret put` (secrets, pushed by `scripts/setup.sh`).
 
 ## SQLite Schema
 
@@ -282,8 +283,8 @@ See `src/session/schema.ts` for full schema.
 
 ## D1 Schema (sessions, environments, automations)
 
-Shared state lives in the D1 database (migrations in `terraform/d1/migrations/`). Beyond the
-sessions index, repo metadata, and encrypted secrets:
+Shared state lives in the D1 database (migrations in `packages/control-plane/migrations/`). Beyond
+the sessions index, repo metadata, and encrypted secrets:
 
 - `session_repositories`: a session's ordered repository list (position 0 = primary; single-repo
   sessions also mirror the primary onto the session row's scalar columns).
@@ -333,9 +334,9 @@ context contains only the browser-session and signed-channel evidence. Provider-
 authorities resolve linked accounts on demand for workflows such as GitHub SCM enrichment; linked
 accounts do not participate in browser-session authentication.
 
-Terraform configures `WEB_APP_URL`, provider credentials, admission allowlists, and
-`BROWSER_AUTH_SECRET` on this worker. `WEB_APP_URL` must be the exact browser-visible HTTPS origin,
-except that an HTTP loopback origin is accepted for local development.
+`wrangler.jsonc` configures `WEB_APP_URL` and provider credentials/admission allowlists;
+`BROWSER_AUTH_SECRET` is pushed as a secret by `scripts/setup.sh`. `WEB_APP_URL` must be the exact
+browser-visible HTTPS origin, except that an HTTP loopback origin is accepted for local development.
 
 A complete GitHub or Google OAuth credential pair enables that sign-in provider; partial pairs and
 an empty provider set fail closed. Google requires verified-email/domain admission (or explicit
@@ -378,9 +379,8 @@ calls `/sessions/:id/scm-credentials` with the sandbox auth token and receives s
 credentials on demand. Legacy snapshots and one-shot image builds may still receive env-token
 fallbacks for compatibility. The helper preserves the existing installation-wide model by serving
 credentials for HTTPS git requests to the configured SCM host, including setup/start hooks that
-clone auxiliary private repos. This avoids stale embedded credentials in long-running sessions and
-Daytona persistent resumes; Modal snapshot restores still mint a fresh fallback token during
-restore.
+clone auxiliary private repos. This avoids stale embedded credentials in long-running sessions;
+snapshot restores still mint a fresh fallback token during restore.
 
 If a `create-pr` request is triggered by a participant without a user OAuth token (for example,
 Slack-created or Google-login sessions), the sandbox can still push the branch with brokered GitHub
@@ -397,7 +397,8 @@ request.
 
 ### Configuration
 
-All secrets are configured via Terraform. Required secrets include:
+All secrets are configured via `wrangler secret put` (pushed by `scripts/setup.sh`). Required
+secrets include:
 
 - `GITHUB_APP_ID` - GitHub App ID
 - `GITHUB_APP_PRIVATE_KEY` - GitHub App private key (PKCS#8 format)
@@ -415,9 +416,8 @@ Optional variables:
 - `GITLAB_NAMESPACE` - GitLab group namespace to scope repository listing (optional). When set,
   `GET /repos` lists projects within the group instead of all projects the token has access to.
 
-See
-[terraform/environments/production/terraform.tfvars.example](../../terraform/environments/production/terraform.tfvars.example)
-for the complete list.
+See [wrangler.jsonc](./wrangler.jsonc) and [scripts/setup.sh](../../scripts/setup.sh) for the
+complete list.
 
 ### Deployment Recommendations
 

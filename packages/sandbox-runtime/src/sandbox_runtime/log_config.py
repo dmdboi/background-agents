@@ -1,5 +1,5 @@
 """
-Structured JSON logging for Open-Inspect modal-infra.
+Structured JSON logging for Open-Inspect sandbox-runtime.
 
 Uses Python's standard logging module with a custom JSONFormatter and a thin
 StructuredLogger wrapper for a clean call-site API. Third-party library logs
@@ -56,7 +56,7 @@ class JSONFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         output: dict[str, Any] = {
             "level": record.levelname.lower(),
-            "service": getattr(record, "_service", "modal-infra"),
+            "service": getattr(record, "_service", "sandbox-runtime"),
             "component": getattr(record, "_component", record.name),
             "event": record.getMessage(),
             "ts": int(record.created * 1000),
@@ -102,7 +102,7 @@ class StructuredLogger:
     def __init__(
         self,
         component: str,
-        service: str = "modal-infra",
+        service: str = "sandbox-runtime",
         context: dict[str, Any] | None = None,
     ):
         self._component = component

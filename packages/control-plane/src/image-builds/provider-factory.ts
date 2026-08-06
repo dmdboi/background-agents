@@ -1,22 +1,18 @@
 import { createSandboxProviderFromEnv } from "../sandbox/provider-factory";
 import type { Env } from "../types";
-import { ModalImageBuildAdapter } from "./modal-adapter";
+import { CloudflareImageBuildAdapter } from "./cloudflare-adapter";
 import type { ImageBuildProvider } from "./model";
-import { OpenComputerImageBuildAdapter } from "./opencomputer-adapter";
 import type { ImageBuildAdapter } from "./types";
-import { VercelImageBuildAdapter } from "./vercel-adapter";
 
 /**
  * Composition boundary for image-build provider adapters.
  *
- * Providers share one lifecycle contract; only API translation varies.
+ * Cloudflare is the only supported provider now; `create()` keeps its
+ * `provider`/`operation` signature for call-site stability (image-build
+ * records still carry a `provider` column) but the value is otherwise
+ * unused — there is nothing left to switch on.
  */
 export interface ImageBuildAdapterFactory {
-  /**
-   * `start` validates configuration needed to create a provider session.
-   * `existing_session` requires only the configuration needed to finalize or
-   * clean up a session that has already been bound to the build.
-   */
   create(provider: ImageBuildProvider, operation: "start" | "existing_session"): ImageBuildAdapter;
 }
 
@@ -27,18 +23,10 @@ export function createImageBuildAdapterFactory(env: Env): ImageBuildAdapterFacto
 class EnvImageBuildAdapterFactory implements ImageBuildAdapterFactory {
   constructor(private readonly env: Env) {}
 
-  create(provider: ImageBuildProvider, operation: "start" | "existing_session"): ImageBuildAdapter {
-    switch (provider) {
-      case "modal":
-        return new ModalImageBuildAdapter(createSandboxProviderFromEnv(this.env, "modal"));
-      case "vercel":
-        return new VercelImageBuildAdapter(createSandboxProviderFromEnv(this.env, "vercel"));
-      case "opencomputer":
-        return new OpenComputerImageBuildAdapter(
-          createSandboxProviderFromEnv(this.env, "opencomputer", {
-            requireOpenComputerTemplate: operation === "start",
-          })
-        );
-    }
+  create(
+    _provider: ImageBuildProvider,
+    _operation: "start" | "existing_session"
+  ): ImageBuildAdapter {
+    return new CloudflareImageBuildAdapter(createSandboxProviderFromEnv(this.env));
   }
 }

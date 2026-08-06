@@ -33,11 +33,9 @@ few minutes of changes.
 
 ## Getting Started
 
-Pre-built images are available when the deployment uses `sandbox_provider = "modal"`,
-`sandbox_provider = "vercel"`, or `sandbox_provider = "opencomputer"`. The artifact is stored per
-provider as a Modal image, Vercel snapshot, or OpenComputer checkpoint. Daytona deployments use
-persistent sandboxes instead. E2B deployments use persistent pause/resume. Image settings are
-disabled for both backends.
+Pre-built images are available on every Open-Inspect deployment. The artifact is a Cloudflare
+sandbox filesystem backup (`createBackup()`/`restoreBackup()` on the sandbox's `/workspace`
+directory via the `@cloudflare/sandbox` SDK).
 
 ### Enable for a Repository
 
@@ -101,15 +99,10 @@ any of the following holds:
 - **Outdated runtime** — the image was built on a sandbox runtime older than the current
   compatibility floor (such images are also skipped at spawn time)
 
-The provider-neutral control-plane scheduler scans every enabled scope on each tick and starts every
-required rebuild it finds. Maintenance selects every pending terminal provider build session and old
-artifact, while bounding concurrent cleanup calls. Sessions fall back to the normal startup flow
-while a scope waits for its build.
-
-When changing `sandbox_provider`, keep the previous provider's credentials configured until its
-terminal build-session cleanup backlog reaches zero. Maintenance dispatches cleanup from each row's
-recorded provider, independently of which provider is currently active; removing old credentials
-early leaves those rows pending until the provider's own timeout or credentials are restored.
+The control-plane scheduler scans every enabled scope on each tick and starts every required rebuild
+it finds. Maintenance selects every pending terminal build session and old artifact, while bounding
+concurrent cleanup calls. Sessions fall back to the normal startup flow while a scope waits for its
+build.
 
 Builds also trigger immediately, outside the schedule, when:
 
@@ -167,22 +160,15 @@ secrets for a repository scope, global + environment secrets for an environment 
 ([session-target scoping](SECRETS.md#which-secrets-a-session-receives)).
 
 Everything your setup scripts install — dependencies, build artifacts, caches — is captured in the
-image artifact. Depending on the active sandbox provider, this is stored as a Modal image, Vercel
-snapshot, or OpenComputer checkpoint.
+image artifact: a Cloudflare sandbox filesystem backup of `/workspace`.
 
-The configured build timeout covers clone and setup execution. Build sandboxes receive an additional
-ten minutes for callback delivery and snapshot/checkpoint finalization. Because Vercel limits
-sandbox lifetime to 45 minutes, Vercel image-build execution is capped at 35 minutes so that reserve
-is never lost; Modal and OpenComputer continue to honor the configured execution timeout up to the
-shared one-hour limit.
+The configured build timeout covers clone and setup execution, up to the one-hour maximum. Build
+sandboxes receive an additional ten minutes on top of that for callback delivery and backup
+finalization.
 
-Modal follows the same lifecycle as the other providers: the control plane creates a dormant
-sandbox, records its id, starts the runtime, and snapshots it only after the callback has been
-durably accepted. The retired long-running Modal `build_image` function and Modal-side rebuild cron
-have been removed; rebuild evaluation now runs only in the provider-neutral control-plane scheduler.
-
-Terraform deploys the Modal app before the control-plane Worker so a one-shot upgrade cannot expose
-the Worker until Modal's provider-session endpoints are available.
+The control plane creates a dormant build sandbox, records its id, starts the runtime, and backs it
+up only after the callback has been durably accepted. Backups are garbage-collected by their own TTL
+(3 days by default) rather than deleted explicitly when a build is cleaned up or superseded.
 
 ### What Happens When You Start a Session
 

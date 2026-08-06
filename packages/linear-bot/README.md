@@ -55,23 +55,25 @@ Fill in:
 
 Note the **Client ID**, **Client Secret**, and **Webhook Signing Secret**.
 
-### 2. Deploy via Terraform
+### 2. Deploy via wrangler
 
-Set `enable_linear_bot = true` and add to your `terraform.tfvars`:
+Set `vars.LINEAR_CLIENT_ID` in `packages/linear-bot/wrangler.toml`, then push the operator-supplied
+secrets and deploy:
 
-```hcl
-enable_linear_bot     = true
-linear_client_id      = "your-client-id"
-linear_client_secret  = "your-client-secret"
-linear_webhook_secret = "your-webhook-signing-secret"
+```bash
+npx wrangler secret put LINEAR_CLIENT_SECRET --name open-inspect-linear-bot
+npx wrangler secret put LINEAR_WEBHOOK_SECRET --name open-inspect-linear-bot
 ```
 
-The worker also requires these secrets (set via `wrangler secret put` or Terraform):
+The worker also requires these secrets (set via `wrangler secret put`):
 
 - **`ANTHROPIC_API_KEY`** — used by the LLM classifier for repo resolution fallback
 - **`SERVICE_AUTH_SECRET`** — per-service sig1 signing secret; also verifies CP callbacks
 
-Then `terraform apply`.
+Then `npm run build -w @open-inspect/linear-bot && (cd packages/linear-bot && wrangler deploy)`.
+
+`./scripts/setup.sh` does all of this for you as part of a full deployment — see
+[Getting Started](../../docs/GETTING_STARTED.md).
 
 ### 3. Install the Agent in Your Workspace
 
@@ -89,8 +91,8 @@ as runtime credentials.
 ### Upgrading an Existing Installation
 
 Before deploying a version that uses client credentials, open the existing application in **Linear
-Settings → API → Applications** and enable **Client credentials tokens**. Terraform cannot change
-this Linear-side setting.
+Settings → API → Applications** and enable **Client credentials tokens**. This is a Linear-side
+setting with no API or deploy-tooling equivalent — it must be toggled by hand in Linear's UI.
 
 For a private, single-workspace deployment whose application credentials resolve to the installed
 workspace, deploy normally after enabling the setting. No uninstall/reinstall, new secret, webhook

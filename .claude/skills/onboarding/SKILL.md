@@ -2,8 +2,8 @@
 name: onboarding
 description:
   Deploy your own Open-Inspect instance. Use when the user wants to set up, deploy, or onboard to
-  Open-Inspect. Guides through repository setup, credential collection, Terraform deployment, and
-  verification with user handoffs.
+  Open-Inspect. Guides through repository setup, credential collection, wrangler-based deployment,
+  and verification with user handoffs.
 user-invocable: true
 allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, TodoWrite
 ---
@@ -12,6 +12,10 @@ allowed-tools: Bash, Read, Write, Edit, Glob, Grep, AskUserQuestion, TodoWrite
 
 You are guiding the user through deploying their own instance of Open-Inspect. This is a multi-phase
 process requiring user interaction for credential collection and external service configuration.
+Deployment is `wrangler`-native: `./scripts/setup.sh` provisions every Cloudflare resource (D1, R2,
+KV, queues), pushes secrets, and deploys all five Workers. Read `scripts/setup.sh` yourself before
+starting — it is the authoritative source for what gets created and what credentials are needed;
+this guide walks the user through gathering the values it prompts for.
 
 ## Before Starting
 
@@ -19,17 +23,16 @@ Use TodoWrite to create a checklist tracking these phases:
 
 1. Initial setup questions
 2. Repository setup
-3. Credential collection (Cloudflare, Vercel, Modal, Anthropic)
-4. GitHub App creation (+ Google OAuth if enabled)
-5. Slack App creation (if enabled)
-6. Security secrets generation
-7. Terraform configuration
-8. Terraform deployment (two phases)
-9. Post-deployment Slack setup (if enabled)
-10. Post-deployment GitHub Bot setup (if enabled)
-11. Web app deployment
-12. Verification
-13. CI/CD setup (optional)
+3. Cloudflare authentication
+4. Credential collection (GitHub App, Google OAuth if enabled, Slack if enabled, Linear if enabled,
+   Anthropic)
+5. GitHub App creation (+ Google OAuth if enabled)
+6. Slack App creation (if enabled)
+7. Run `./scripts/setup.sh`
+8. Post-deployment Slack setup (if enabled)
+9. Post-deployment GitHub Bot setup (if enabled)
+10. Verification
+11. CI/CD setup (optional)
 
 ## Phase 1: Initial Questions
 
@@ -44,14 +47,11 @@ Use AskUserQuestion to gather:
 1. **Directory location** - Where to create the project (default: current directory or
    ~/workplace/open-inspect-{suffix})
 2. **GitHub account** - Which account/org hosts the private repo
-3. **Deployment name** - A globally unique identifier for URLs (e.g., their GitHub username, company
-   name, or the random suffix generated above). Explain this creates URLs like
-   `open-inspect-{deployment_name}.vercel.app` and must be unique across all Vercel users.
-4. **Slack integration** - Yes or No
-5. **GitHub bot integration** - Yes or No (automated PR reviews and comment-triggered actions)
+3. **Slack integration** - Yes or No
+4. **GitHub bot integration** - Yes or No (automated PR reviews and comment-triggered actions)
+5. **Linear integration** - Yes or No
 6. **Sign-in providers** - GitHub, Google, or both. At least one is required.
-7. **Prerequisites confirmation** - Confirm they have accounts on Cloudflare, Vercel, Modal,
-   Anthropic
+7. **Prerequisites confirmation** - Confirm they have a Cloudflare account and an Anthropic account.
 
 ## Phase 2: Repository Setup
 
@@ -69,56 +69,66 @@ npm install
 npm run build -w @open-inspect/shared
 ```
 
-## Phase 3: Credential Collection
+## Phase 3: Cloudflare Authentication
 
-Hand off to user for each service. Use AskUserQuestion to collect credentials.
+`scripts/setup.sh` needs an authenticated `wrangler` session. Either interactive login or an API
+token both work:
 
-### Cloudflare
+```bash
+npx wrangler login
+```
+
+or, for non-interactive/CI use, export:
+
+```bash
+export CLOUDFLARE_API_TOKEN="{token}"
+export CLOUDFLARE_ACCOUNT_ID="{account_id}"
+```
 
 Tell the user:
 
-- **Account ID**: Found in dashboard URL or account overview
-- **Workers Subdomain**: Workers & Pages → Overview, **bottom-right** panel shows
-  `*.YOUR-SUBDOMAIN.workers.dev`
-- **API Token**: Create at https://dash.cloudflare.com/profile/api-tokens with template "Edit
-  Cloudflare Workers" + permissions for Workers KV Storage (Edit), Workers R2 Storage (Edit), D1
-  (Edit)
+- **Account ID**: Found in the Cloudflare dashboard URL or account overview.
+- **API Token**: Create at https://dash.cloudflare.com/profile/api-tokens with the "Edit Cloudflare
+  Workers" template, plus permissions for Workers KV Storage (Edit), Workers R2 Storage (Edit), D1
+  (Edit), and Queues (Edit).
 
-### R2 Bucket
-
-Check wrangler login status, then create bucket:
+Verify with:
 
 ```bash
-wrangler whoami
-wrangler r2 bucket create open-inspect-{name}-tf-state
+npx wrangler whoami
 ```
 
-Tell user to create R2 API Token at R2 → Overview → Manage R2 API Tokens with "Object Read & Write"
-permission.
+## Phase 4: Credential Collection
 
-### Vercel
+`scripts/setup.sh` prompts for these operator-supplied secrets interactively (reading from
+environment variables first, so they can also be exported ahead of time to skip the prompts). Only
+gather the ones relevant to the integrations selected in Phase 1 — leave the rest blank when
+prompted.
 
-- **API Token**: https://vercel.com/account/tokens
-- **Team/Account ID**: Settings → "Your ID" (even personal accounts have one, usually starts with
-  `team_`)
+| Variable                     | Required when                              |
+| ---------------------------- | ------------------------------------------ |
+| `GITHUB_APP_ID`              | Always (repository access)                 |
+| `GITHUB_APP_PRIVATE_KEY`     | Always (PKCS#8 PEM, single line with `\n`) |
+| `GITHUB_APP_INSTALLATION_ID` | Always                                     |
+| `GITHUB_CLIENT_SECRET`       | GitHub sign-in enabled                     |
+| `GITHUB_WEBHOOK_SECRET`      | GitHub bot enabled                         |
+| `GOOGLE_CLIENT_SECRET`       | Google sign-in enabled                     |
+| `SLACK_BOT_TOKEN`            | Slack enabled                              |
+| `SLACK_SIGNING_SECRET`       | Slack enabled                              |
+| `LINEAR_WEBHOOK_SECRET`      | Linear enabled                             |
+| `LINEAR_CLIENT_SECRET`       | Linear enabled                             |
+| `LINEAR_API_KEY`             | Linear enabled                             |
+| `ANTHROPIC_API_KEY`          | Always (used by slack-bot and linear-bot)  |
 
-### Modal
-
-- **Token ID and Secret**: https://modal.com/settings or `modal token new`
-- **Workspace name**: Visible in Modal dashboard URL
-
-Then set the token:
-
-```bash
-modal token set --token-id {token_id} --token-secret {token_secret}
-modal profile current
-```
+Everything else the deploy needs (`BROWSER_AUTH_SECRET`, `TOKEN_ENCRYPTION_KEY`, per-Worker
+`SERVICE_AUTH_SECRET_*`, etc.) is auto-generated by `scripts/setup.sh` on first run and cached in a
+gitignored `.secrets` file — don't collect or generate these by hand.
 
 ### Anthropic
 
 - **API Key**: https://console.anthropic.com (starts with `sk-ant-`)
 
-## Phase 4: GitHub App Setup
+## Phase 5: GitHub App Setup
 
 Guide the user through creating a GitHub App. Its App ID, private key, and installation ID are
 always required for repository access. Its client ID and secret enable GitHub sign-in only when the
@@ -126,11 +136,9 @@ user selected GitHub:
 
 1. Go to https://github.com/settings/apps → "New GitHub App"
 2. **Name**: `Open-Inspect-{YourName}` (globally unique)
-3. **Homepage URL**: The deployed web app URL for the selected platform:
-   - Vercel: `https://open-inspect-{deployment_name}.vercel.app`
-   - Cloudflare workers.dev: `https://open-inspect-web-{deployment_name}.{subdomain}.workers.dev`
-   - Cloudflare custom domain: `https://{your-custom-domain}`
-4. **Webhook**: Uncheck "Active"
+3. **Homepage URL**: the deployed web app URL, e.g.
+   `https://open-inspect-web-{deployment_name}.{subdomain}.workers.dev` (or your custom domain)
+4. **Webhook**: Uncheck "Active" (turn on later, only if the GitHub bot is enabled — see Phase 9)
 5. If GitHub sign-in is selected, set the **Callback URL** (under "Identifying and authorizing
    users"): `{deployed-web-app-url}/api/auth/callback/github`
    - **CRITICAL**: The origin must exactly match the Homepage URL selected above.
@@ -140,7 +148,7 @@ user selected GitHub:
    (Read-only)
 8. Create app, note **App ID**
 9. If GitHub sign-in is selected, generate a **Client Secret** and note the **Client ID** and
-   **Client Secret**. Otherwise leave both Terraform values empty.
+   **Client Secret**. Otherwise leave both empty.
 10. Generate **Private Key** (downloads .pem file)
 11. Install app on account, note **Installation ID** from URL
 
@@ -151,37 +159,29 @@ openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in {pem_path} -out /tmp/
 cat /tmp/github-app-key-pkcs8.pem
 ```
 
-## Phase 4b: Google OAuth Setup (If Enabled)
+## Phase 5b: Google OAuth Setup (If Enabled)
 
-Only if the user selected Google sign-in. Skip for GitHub-only deployments and leave
-`google_client_id` and `google_client_secret` empty.
+Only if the user selected Google sign-in. Skip for GitHub-only deployments.
 
 Guide user:
 
 1. https://console.cloud.google.com/apis/credentials → "Create Credentials" → "OAuth client ID"
 2. **Application type**: Web application
-3. **Authorized redirect URI**:
-   `https://open-inspect-{deployment_name}.vercel.app/api/auth/callback/google` (or your
-   `*.workers.dev` web URL if `web_platform = "cloudflare"`)
+3. **Authorized redirect URI**: `{deployed-web-app-url}/api/auth/callback/google`
    - **CRITICAL**: Must match deployed web URL exactly!
 4. OAuth consent screen: request only `openid`, `email`, `profile` scopes (non-sensitive — no Google
    verification review required)
 5. Note **Client ID** and **Client Secret**
 
-Then in `terraform.tfvars`:
+The `GOOGLE_CLIENT_SECRET` gets pushed by `scripts/setup.sh` in Phase 7. The client ID is a
+control-plane config value (not a secret) — check `packages/control-plane/wrangler.jsonc` for where
+it's set, and confirm at least one of `allowed_emails` / `allowed_email_domains` admission is
+configured there too (prefer `allowed_emails` for shared domains like gmail.com).
 
-- Set `google_client_id` and `google_client_secret` (both required together; leave both empty to
-  disable)
-- Add at least one entry to `allowed_emails` (exact addresses, e.g. `pm@gmail.com`) or
-  `allowed_email_domains`. Prefer `allowed_emails` for shared domains like gmail.com.
-- If Google is the only sign-in provider, leave `github_client_id` and `github_client_secret` empty.
-  Keep the GitHub App ID, private key, and installation ID configured for repository access.
+Google users get the same flat access; their PRs fall back to the App bot unless the same verified
+email is also a linked GitHub identity.
 
-The next request to `/login` shows Google after both credentials are deployed; no separate web flag
-or rebuild is required. Google users get the same flat access; their PRs fall back to the App bot
-unless the same verified email is also a linked GitHub identity.
-
-## Phase 5: Slack App Setup (If Enabled)
+## Phase 6: Slack App Setup (If Enabled)
 
 Guide user:
 
@@ -192,75 +192,45 @@ Guide user:
 3. Install to Workspace, note **Bot Token** (`xoxb-...`)
 4. Basic Information → note **Signing Secret**
 5. **App Home and Event Subscriptions configured AFTER deployment** (worker must be running for URL
-   verification)
+   verification — see Phase 8)
 
 `files:read` forwards user-attached images into sessions; `files:write` posts generated media back
 to Slack. Reinstall the app whenever either scope is added to an existing installation.
 
-## Phase 6: Generate Security Secrets
+## Phase 7: Run `./scripts/setup.sh`
+
+With wrangler authenticated (Phase 3) and the credentials from Phase 4 either exported as env vars
+or ready to paste at the prompts, run:
 
 ```bash
-echo "token_encryption_key: $(openssl rand -base64 32)"
-echo "repo_secrets_encryption_key: $(openssl rand -base64 32)"
-echo "internal_callback_secret: $(openssl rand -base64 32)"
-echo "nextauth_secret: $(openssl rand -base64 32)"
-echo "modal_api_secret: $(openssl rand -hex 32)"
-echo "github_webhook_secret: $(openssl rand -hex 32)"  # Only if GitHub bot enabled
+./scripts/setup.sh
 ```
 
-## Phase 7: Terraform Configuration
+This is idempotent and does everything in one pass:
 
-Create `terraform/environments/production/backend.tfvars`:
+1. Creates the D1 database if missing and applies migrations from
+   `packages/control-plane/migrations/`
+2. Creates the R2 bucket if missing
+3. Creates KV namespaces if missing (prints ids to paste into the relevant wrangler config on first
+   run — watch the output)
+4. Creates queues (+ dead-letter queues) if missing
+5. Generates or reuses cached internal secrets (`.secrets`, gitignored — never commit it) and
+   prompts for the operator-supplied secrets from Phase 4
+6. Pushes all secrets to the right Worker via `wrangler secret put`
+7. Builds and deploys all five Workers: control-plane, slack-bot, github-bot, linear-bot, then web
+   (via `npx opennextjs-cloudflare deploy`, after `npm run build:cloudflare -w @open-inspect/web`)
 
-```hcl
-access_key = "{r2_access_key}"
-secret_key = "{r2_secret_key}"
-bucket     = "open-inspect-{name}-tf-state"
-endpoints = {
-  s3 = "https://{cloudflare_account_id}.r2.cloudflarestorage.com"
-}
-```
+If step 1 or 3 prints a newly created D1 database id or KV namespace id, copy it into the relevant
+`wrangler.jsonc`/`wrangler.toml` binding before re-running (or continuing) — the script tells you
+exactly which file and field.
 
-Create `terraform/environments/production/terraform.tfvars` with all collected values. Set:
+`NEXT_PUBLIC_*` vars (e.g. `NEXT_PUBLIC_WS_URL`) are inlined into the web client at build time. If
+non-default values are needed, export them before running the script; otherwise the values in
+`packages/web/wrangler.toml`'s `[vars]` are used.
 
-```hcl
-enable_durable_object_bindings = false
-enable_service_bindings        = false
-```
+## Phase 8: Complete Slack Setup (If Enabled)
 
-If GitHub bot is enabled, also set:
-
-```hcl
-enable_github_bot     = true
-github_webhook_secret = "{generated_value}"
-github_bot_username   = "{app-slug}[bot]"
-```
-
-## Phase 8: Terraform Deployment (Two-Phase)
-
-**Important**: Build the workers before running Terraform (Terraform references the built bundles):
-
-```bash
-npm run build -w @open-inspect/control-plane -w @open-inspect/slack-bot -w @open-inspect/github-bot
-```
-
-**Phase 1** (bindings disabled):
-
-```bash
-cd terraform/environments/production
-terraform init -backend-config=backend.tfvars
-terraform apply
-```
-
-**Phase 2** (after Phase 1 succeeds): Update tfvars to set both bindings to `true`, then:
-
-```bash
-terraform apply
-```
-
-## Phase 9: Complete Slack Setup (If Enabled)
-
-After Terraform deployment, guide user:
+After deployment, guide user:
 
 ### Enable App Home
 
@@ -288,9 +258,9 @@ The App Home provides a settings interface where users can configure their prefe
 
 6. Invite bot to channels: `/invite @BotName`
 
-## Phase 10: Complete GitHub Bot Setup (If Enabled)
+## Phase 9: Complete GitHub Bot Setup (If Enabled)
 
-After Terraform deployment, guide user:
+After deployment, guide user:
 
 ### Configure Webhook on GitHub App
 
@@ -298,7 +268,7 @@ After Terraform deployment, guide user:
 2. Under **Webhook**: check **"Active"**
 3. **Webhook URL**:
    `https://open-inspect-github-bot-{deployment_name}.{subdomain}.workers.dev/webhooks/github`
-4. **Webhook secret**: Enter the `github_webhook_secret` value
+4. **Webhook secret**: Enter the `GITHUB_WEBHOOK_SECRET` value from Phase 4
 5. Under **Subscribe to events**, check: **Pull requests**, **Issue comments**, **Pull request
    review comments**
 6. Save changes
@@ -306,52 +276,55 @@ After Terraform deployment, guide user:
 ### Find Bot Username
 
 The bot username is the App's slug with `[bot]` appended. E.g., if the app is `My-Inspect-App`, the
-bot username is `my-inspect-app[bot]`. Confirm this matches `github_bot_username` in
-terraform.tfvars.
+bot username is `my-inspect-app[bot]`. Confirm this matches the `github_bot_username`-equivalent
+config in `packages/control-plane/wrangler.jsonc`.
 
 ### Usage
 
 - **Code Review**: Assign the bot as a PR reviewer
 - **Comment Actions**: @mention the bot in a PR comment with instructions
 
-## Phase 11: Web App Deployment
-
-```bash
-npx vercel link --project open-inspect-{deployment_name}
-npx vercel --prod
-```
-
-## Phase 12: Verification
+## Phase 10: Verification
 
 ```bash
 curl https://open-inspect-control-plane-{deployment_name}.{subdomain}.workers.dev/health
-curl https://{workspace}--open-inspect-api-health.modal.run
-curl -I "$(terraform output -raw web_app_url)"
+curl -I "https://open-inspect-web-{deployment_name}.{subdomain}.workers.dev"
 ```
 
 Present a deployment summary table. Instruct the user to test: visit the web app, sign in with each
 configured provider, create a session, and send a prompt.
 
-## Phase 13: CI/CD Setup (Optional)
+## Phase 11: CI/CD Setup (Optional)
 
-Ask if user wants GitHub Actions CI/CD. If yes, use `gh secret set` for all required secrets.
+`.github/workflows/ci.yml` already has a `deploy` job that runs `scripts/setup.sh` on push to `main`
+once lint/typecheck/tests pass, using `actions/cache` to persist `.secrets` across runs. It reads
+Cloudflare and operator credentials from named GitHub Actions secrets: `CLOUDFLARE_API_TOKEN`,
+`CLOUDFLARE_ACCOUNT_ID`, `OI_GITHUB_APP_ID`, `OI_GITHUB_APP_PRIVATE_KEY`,
+`OI_GITHUB_APP_INSTALLATION_ID`, `OI_GITHUB_CLIENT_SECRET`, `OI_GITHUB_WEBHOOK_SECRET`,
+`OI_GOOGLE_CLIENT_SECRET`, `OI_SLACK_BOT_TOKEN`, `OI_SLACK_SIGNING_SECRET`,
+`OI_LINEAR_WEBHOOK_SECRET`, `OI_LINEAR_CLIENT_SECRET`, `OI_LINEAR_API_KEY`, `OI_ANTHROPIC_API_KEY`.
+
+Ask if the user wants this wired up. If yes, use `gh secret set` for each value collected in the
+phases above (only the ones relevant to their enabled integrations).
 
 ## Error Handling
 
 - **"redirect_uri is not associated"**: Callback URL mismatch - update GitHub App settings
-- **Durable Object errors**: Must follow two-phase deployment
 - **Slack bot not responding**: Check Event Subscriptions URL verified, bot invited to channel,
   reinstall if scopes changed
-- **GitHub bot not responding**: Check webhook URL, secret, `enable_github_bot = true`, and
-  `github_bot_username` matches the App's bot login
-- **Vercel build fails**: Terraform configures the monorepo build commands automatically
-- **"no such file or directory" for dist/index.js**: Build workers before Terraform:
-  `npm run build -w @open-inspect/control-plane -w @open-inspect/slack-bot -w @open-inspect/github-bot`
+- **GitHub bot not responding**: Check webhook URL, secret, and that `github_bot_username` matches
+  the App's bot login
+- **`wrangler deploy` fails with a missing D1/KV id**: `scripts/setup.sh` prints the id when it
+  creates a new resource — paste it into the field it names in the relevant wrangler config, then
+  re-run the script.
 - **Worker deployment fails**: Build shared package first: `npm run build -w @open-inspect/shared`
+- **Web build fails**: Build order matters — `npm run build -w @open-inspect/shared` then
+  `npm run build:cloudflare -w @open-inspect/web` before `npx opennextjs-cloudflare deploy`.
 
 ## Important Notes
 
 - Track all collected credentials securely throughout the process
 - Never log sensitive values
 - The callback URL MUST match the actual deployed web app URL
-- Two-phase Terraform deployment is required due to Cloudflare Durable Object constraints
+- `scripts/setup.sh` is idempotent — safe to re-run; it skips resources that already exist and
+  reuses cached auto-generated secrets from `.secrets`

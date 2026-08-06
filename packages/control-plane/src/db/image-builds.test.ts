@@ -28,12 +28,12 @@ const INTERNAL_KEYS = [
   "provider_image_id",
 ];
 
-/** A full table row, including the internal columns (Vercel-shape values). */
+/** A full table row, including the internal columns (Cloudflare-shape values). */
 const FULL_ROW: Record<string, unknown> = {
   id: "b1",
   scope_kind: "environment",
   scope_id: "env_1",
-  provider: "vercel",
+  provider: "cloudflare",
   status: "ready",
   repositories_fingerprint: "fp",
   repository_shas: "[]",

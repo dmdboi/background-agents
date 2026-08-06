@@ -45,7 +45,7 @@ class TestJSONFormatter:
         log = get_logger("test-component")
         record = _capture_log(log)
         assert record["level"] == "info"
-        assert record["service"] == "modal-infra"
+        assert record["service"] == "sandbox-runtime"
         assert record["component"] == "test-component"
         assert record["event"] == "test.event"
         assert isinstance(record["ts"], int)

@@ -1,20 +1,22 @@
 # AGENTS.md
 
 Open-Inspect is a background coding agent system that spawns sandboxed dev environments to work on
-GitHub repositories. Single-tenant design. Stack: Cloudflare Workers (TypeScript), Modal (Python),
-Next.js (React), Terraform.
+GitHub repositories. Single-tenant design. Stack: Cloudflare Workers (TypeScript), Next.js (React),
+wrangler.
 
 ## Architecture
 
 Three tiers connected by WebSockets:
 
-1. **Web Client** (Next.js on Vercel or Cloudflare Workers via OpenNext) — UI with GitHub OAuth,
-   session dashboard, real-time streaming
+1. **Web Client** (Next.js on Cloudflare Workers via OpenNext) — UI with GitHub OAuth, session
+   dashboard, real-time streaming
 2. **Control Plane** (Cloudflare Workers + Durable Objects) — session lifecycle, WebSocket hub,
    GitHub/auth integration. Each session is a Durable Object with SQLite storage. Uses D1 for the
    session index, repo metadata, environments, and encrypted secrets.
-3. **Data Plane** (Modal, Python) — sandboxed environments running coding agents. Manages sandbox
-   creation, snapshots, and repository/environment image builds.
+3. **Data Plane** (Cloudflare Containers / Sandbox SDK) — sandboxed environments running coding
+   agents, addressed as Durable-Object-backed containers directly from the control plane Worker
+   (`@cloudflare/sandbox`). Manages sandbox creation, snapshots, and repository/environment image
+   builds.
 
 **Bot integrations** — all Cloudflare Workers using Hono:
 
@@ -22,8 +24,8 @@ Three tiers connected by WebSockets:
 - `github-bot` — PR review assignments and @mention commands
 - `linear-bot` — Linear agent webhooks → coding sessions
 
-**Data flow**: User prompt → web client → control plane DO (WebSocket) → Modal sandbox → streaming
-events back through the same WebSocket chain.
+**Data flow**: User prompt → web client → control plane DO (WebSocket) → Cloudflare sandbox →
+streaming events back through the same WebSocket chain.
 
 ### Package Dependency Graph
 
@@ -44,7 +46,6 @@ it at build time.
 | `slack-bot`     | TypeScript / CF Workers + Hono     | Slack event handler, session creation                       |
 | `github-bot`    | TypeScript / CF Workers + Hono     | PR review and @mention webhook handler                      |
 | `linear-bot`    | TypeScript / CF Workers + Hono     | Linear agent webhook handler                                |
-| `modal-infra`   | Python 3.12 / Modal + FastAPI      | Sandbox lifecycle, WebSocket bridge to control plane        |
 
 ## Common Commands
 
@@ -68,10 +69,10 @@ npm test -w @open-inspect/slack-bot
 npm test -w @open-inspect/linear-bot
 
 # Tests — Python (pytest)
-cd packages/modal-infra && pytest tests/ -v
+cd packages/sandbox-runtime && pytest tests/ -v
 
 # Python linting
-cd packages/modal-infra && ruff check --fix && ruff format
+cd packages/sandbox-runtime && ruff check --fix && ruff format
 ```
 
 ## Testing
@@ -85,7 +86,7 @@ All TypeScript packages use **Vitest**; Python uses **pytest** + pytest-asyncio.
   `@cloudflare/vitest-pool-workers` with real D1 bindings
 - **web, slack-bot, linear-bot**: co-located `src/**/*.test.ts`
 - **github-bot**: separate `test/*.test.ts`
-- **modal-infra**: `tests/test_*.py`
+- **sandbox-runtime**: `tests/test_*.py`
 
 ### Control-plane integration tests
 
@@ -94,7 +95,7 @@ These run inside a real `workerd` runtime with Miniflare, using the `cloudflareT
 
 - Integration tests share one D1 instance — use `cleanD1Tables()` or equivalent cleanup in
   `beforeEach`/`afterEach` to avoid cross-test pollution
-- D1 migrations from `terraform/d1/migrations/` are applied automatically via
+- D1 migrations from `packages/control-plane/migrations/` are applied automatically via
   `test/integration/apply-migrations.ts`
 - Helpers in `test/integration/helpers.ts`: `initSession()`, `queryDO()`, `seedEvents()`
 
@@ -103,7 +104,7 @@ These run inside a real `workerd` runtime with Miniflare, using the `cloudflareT
 ### Durations and timeouts
 
 - **Use seconds for Python, milliseconds for TypeScript.** These match each ecosystem's conventions
-  (Modal `timeout=` takes seconds; control-plane uses `_MS` suffixes throughout).
+  (control-plane uses `_MS` suffixes throughout).
 - **Encode the unit in the name.** Python: `timeout_seconds`. TypeScript: `timeoutMs`,
   `INACTIVITY_TIMEOUT_MS`. Never use a bare `timeout`.
 - **Define each default value exactly once.** Extract to a named constant and import everywhere.
@@ -126,18 +127,16 @@ under 72 characters. Use the PR body for details, not the commit message.
 - **Build order**: always build `@open-inspect/shared` before packages that depend on it.
 - **PKCS#8 keys**: Cloudflare Workers require PKCS#8 format for GitHub App private keys — convert
   with `openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt`.
-- **Durable Object bindings**: new DO bindings require a two-phase Terraform deploy — first with
-  `enable_durable_object_bindings = false`, then `true`.
-- **No `wrangler.toml`**: control-plane config is generated by Terraform, not checked in.
-- **Modal deployment**: from `packages/modal-infra`, run
-  `uv run python deploy.py --build-sandbox-image` before `uv run modal deploy deploy.py` (or
-  `uv run modal deploy -m src`). Never deploy `src/app.py` directly; it doesn't import function
-  modules.
-- **Modal image rebuild**: update `CACHE_BUSTER` in `src/images/base.py` to force a rebuild.
-- **Web platform choice**: set `web_platform = "cloudflare"` in Terraform variables to deploy the
-  web app to Cloudflare Workers via OpenNext instead of Vercel. When using Cloudflare, Vercel
-  credentials are not required (dummy defaults are used). `NEXT_PUBLIC_WS_URL` must be available at
-  build time since Next.js inlines `NEXT_PUBLIC_*` vars into the client bundle.
+- **`wrangler.jsonc`/`wrangler.toml` are checked in**: control-plane, web, and each bot Worker have
+  their own committed wrangler config — there is no code-generation step. Edit them directly.
+- **Sandbox image rebuild**: the sandbox container image is `packages/control-plane/Dockerfile`,
+  built and deployed as part of `wrangler deploy` for control-plane (via the `containers` block in
+  `wrangler.jsonc`). Update `CACHE_BUSTER`-equivalent build args or the Dockerfile layer content to
+  force a rebuild — see the Dockerfile's own header comments.
+- **Web is Cloudflare/OpenNext only**: deployed via `opennextjs-cloudflare deploy`, not plain
+  `wrangler deploy` — build the `.open-next/` bundle first
+  (`npm run build:cloudflare -w @open-inspect/web`). `NEXT_PUBLIC_WS_URL` and other `NEXT_PUBLIC_*`
+  vars must be available at build time since Next.js inlines them into the client bundle.
 - **Repo owners can be nested namespaces**: a `repo_owner` is not always a single segment. GitHub
   owners are (`octocat`), but GitLab subgroups nest (`group/subgroup`), so an owner may contain `/`.
   Only `repo_name` is a single path segment (it's the checkout directory under `/workspace`); the
@@ -149,13 +148,12 @@ under 72 characters. Use the PR body for details, not the commit message.
 
 ## CI/CD
 
-Pushing to `main` auto-deploys changed services:
-
-- **Terraform** → control plane + D1 migrations + web app if `web_platform = "cloudflare"`
-  (triggers: `terraform/`, `packages/*/`)
-- **Vercel** → web app when `web_platform = "vercel"` (triggers: `packages/web/`,
-  `packages/shared/`)
-- **Modal** → data plane (triggers: `packages/modal-infra/`, deployed via Terraform apply)
+Pushing to `main` runs a `deploy` job (`.github/workflows/ci.yml`) gated on lint/typecheck/tests
+passing. It runs `scripts/setup.sh`, which provisions any missing Cloudflare resources (D1, R2, KV,
+queues), pushes secrets from named GitHub Actions secrets (`CLOUDFLARE_API_TOKEN`,
+`OI_GITHUB_APP_ID`, etc.), then builds and `wrangler deploy`s all five Workers — control-plane, web
+(via OpenNext), slack-bot, github-bot, linear-bot. Auto-generated internal secrets are cached across
+runs in `.secrets` via `actions/cache` so re-deploys don't rotate them.
 
 CI runs lint, typecheck, and tests for all TypeScript and Python packages on every push and PR.
 
@@ -166,5 +164,3 @@ CI runs lint, typecheck, and tests for all TypeScript and Python packages on eve
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution guidelines
 - [packages/control-plane/README.md](packages/control-plane/README.md) — API reference, WebSocket
   protocol, D1 schema, security model
-- [packages/modal-infra/README.md](packages/modal-infra/README.md) — sandbox internals, Modal
-  deployment, endpoint URLs

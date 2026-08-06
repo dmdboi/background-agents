@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { VERCEL_MAX_SANDBOX_TIMEOUT_MS } from "../sandbox/providers/vercel/provider";
 import { DEFAULT_ARTIFACT_CLEANUP_MAX_AGE_MS, DEFAULT_STALE_BUILD_MAX_AGE_MS } from "./maintenance";
 import { MAX_IMAGE_BUILD_PROVIDER_SESSION_TIMEOUT_MS } from "./timeouts";
 
@@ -22,9 +21,5 @@ describe("DEFAULT_STALE_BUILD_MAX_AGE_MS", () => {
     expect(MAX_IMAGE_BUILD_PROVIDER_SESSION_TIMEOUT_MS).toBeLessThan(
       DEFAULT_STALE_BUILD_MAX_AGE_MS
     );
-  });
-
-  it("covers Vercel's sandbox lifetime ceiling", () => {
-    expect(VERCEL_MAX_SANDBOX_TIMEOUT_MS).toBeLessThanOrEqual(DEFAULT_STALE_BUILD_MAX_AGE_MS);
   });
 });

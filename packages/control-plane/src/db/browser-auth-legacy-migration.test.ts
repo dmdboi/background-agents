@@ -3,9 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const MIGRATIONS_DIRECTORY = fileURLToPath(
-  new URL("../../../../terraform/d1/migrations/", import.meta.url)
-);
+const MIGRATIONS_DIRECTORY = fileURLToPath(new URL("../../migrations/", import.meta.url));
 const BACKFILL_MIGRATION = "0049_backfill_better_auth_accounts.sql";
 
 function applyMigrationsBeforeBackfill(db: DatabaseSync): void {

@@ -18,7 +18,6 @@
     "test:integration": "npm run test:integration --workspaces --if-present",
     "typecheck": "npm run build -w @open-inspect/shared && npm run typecheck --workspaces --if-present",
     "build": "npm run build -w @open-inspect/shared && npm run build --workspaces --if-present",
-    "build:opencomputer-template": "npm run build-template -w @open-inspect/opencomputer-infra --",
     "prepare": "node -e \"if (process.env.CI) process.exit(0)\" && husky"
   },
   "devDependencies": {
@@ -50,10 +49,6 @@
     ],
     "*.{js,jsx,json,md,yaml,yml,css}": [
       "prettier --write"
-    ],
-    "packages/modal-infra/**/*.py": [
-      "ruff check --fix",
-      "ruff format"
     ],
     "packages/sandbox-runtime/**/*.py": [
       "ruff check --fix",

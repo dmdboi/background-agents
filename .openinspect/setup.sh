@@ -56,22 +56,22 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 5. Python environment (optional — for modal-infra development)
+# 5. Python environment (optional — for sandbox-runtime development)
 # ---------------------------------------------------------------------------
-MODAL_DIR="$REPO_ROOT/packages/modal-infra"
+SANDBOX_RUNTIME_DIR="$REPO_ROOT/packages/sandbox-runtime"
 
 setup_python() {
-  info "Setting up Python environment for modal-infra…"
+  info "Setting up Python environment for sandbox-runtime…"
 
   if ! command -v python3 &>/dev/null; then
     warn "python3 not found — skipping Python setup."
-    warn "Install Python >= 3.12 if you plan to work on packages/modal-infra."
+    warn "Install Python >= 3.12 if you plan to work on packages/sandbox-runtime."
     return
   fi
 
   PY_MINOR=$(python3 -c 'import sys; print(sys.version_info.minor)')
   if (( PY_MINOR < 12 )); then
-    warn "Python >= 3.12 required for modal-infra (found $(python3 --version))."
+    warn "Python >= 3.12 required for sandbox-runtime (found $(python3 --version))."
     warn "Skipping Python setup."
     return
   fi
@@ -79,36 +79,35 @@ setup_python() {
   if command -v uv &>/dev/null; then
     info "Syncing Python dependencies with uv.lock…"
     (
-      cd "$MODAL_DIR"
+      cd "$SANDBOX_RUNTIME_DIR"
       uv sync --frozen --extra dev
     )
-    info "Python environment ready (activate with: source packages/modal-infra/.venv/bin/activate)"
+    info "Python environment ready (activate with: source packages/sandbox-runtime/.venv/bin/activate)"
     return
   fi
 
   warn "uv not found — falling back to pip editable install."
   warn "Install uv for lockfile-reproducible Python environments."
 
-  if [ ! -d "$MODAL_DIR/.venv" ]; then
-    info "Creating virtualenv at packages/modal-infra/.venv…"
-    python3 -m venv "$MODAL_DIR/.venv"
+  if [ ! -d "$SANDBOX_RUNTIME_DIR/.venv" ]; then
+    info "Creating virtualenv at packages/sandbox-runtime/.venv…"
+    python3 -m venv "$SANDBOX_RUNTIME_DIR/.venv"
   fi
 
   # shellcheck disable=SC1091
-  source "$MODAL_DIR/.venv/bin/activate"
+  source "$SANDBOX_RUNTIME_DIR/.venv/bin/activate"
   info "Installing Python dev dependencies…"
-  pip install -q -e "$REPO_ROOT/packages/sandbox-runtime"
-  pip install -q -e "$MODAL_DIR[dev]"
+  pip install -q -e "$SANDBOX_RUNTIME_DIR[dev]"
   deactivate
-  info "Python environment ready (activate with: source packages/modal-infra/.venv/bin/activate)"
+  info "Python environment ready (activate with: source packages/sandbox-runtime/.venv/bin/activate)"
 }
 
-if [ -d "$MODAL_DIR" ]; then
+if [ -d "$SANDBOX_RUNTIME_DIR" ]; then
   # Auto-setup if python3 is available; skip silently otherwise
   if command -v python3 &>/dev/null; then
     setup_python
   else
-    info "python3 not found — skipping optional modal-infra Python setup."
+    info "python3 not found — skipping optional sandbox-runtime Python setup."
   fi
 fi
 

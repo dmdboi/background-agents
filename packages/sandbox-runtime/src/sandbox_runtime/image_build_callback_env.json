@@ -1,5 +1,5 @@
 {
-  "description": "Single source of the cross-plane image-build env-key contract. Consumed by value-pinning tests on both sides: control-plane TS constants in packages/control-plane/src/sandbox/sandbox-env.ts (tested in sandbox-env.test.ts) and the sandbox-runtime / Modal Python constants (tested in packages/modal-infra/tests/test_build_sandbox_lifecycle.py). Production code on both sides keeps its own constants; only tests read this file.",
+  "description": "Single source of the cross-plane image-build env-key contract. Consumed by value-pinning tests on both sides: control-plane TS constants in packages/control-plane/src/sandbox/sandbox-env.ts (tested in sandbox-env.test.ts) and the sandbox-runtime Python constants (tested in packages/sandbox-runtime/tests/). Production code on both sides keeps its own constants; only tests read this file.",
   "callback_env": {
     "build_id": "OI_REPO_IMAGE_BUILD_ID",
     "callback_url": "OI_REPO_IMAGE_CALLBACK_URL",
@@ -12,6 +12,5 @@
   "reserved_only_control_plane": [
     "OI_REPO_IMAGE_CALLBACK_SECRET",
     "OI_IMAGE_BUILD_EXECUTION_TIMEOUT_SECONDS"
-  ],
-  "reserved_only_modal": ["MODAL_SANDBOX_ID"]
+  ]
 }

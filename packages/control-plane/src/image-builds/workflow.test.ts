@@ -22,7 +22,7 @@ const ENV_SCOPE: ImageBuildScope = { kind: "environment", id: "env_1" };
 // Every provider authenticates build callbacks with the single-use token
 // minted at trigger time; the workflow hashes it under this pepper before
 // the store lookup.
-const MODAL_CALLBACK_TOKEN = "modal-callback-token";
+const CALLBACK_TOKEN = "cloudflare-callback-token";
 
 function createEnv(overrides: Partial<Env> = {}): Env {
   return {
@@ -71,7 +71,7 @@ function createAdapter() {
     deleteImage: vi.fn().mockResolvedValue(undefined),
     finalizeSuccessfulBuild: vi.fn().mockResolvedValue({
       providerImageId: "im-finalized",
-      providerSessionId: "vercel-session-1",
+      providerSessionId: "provider-session-1",
     }),
     cleanupFailedBuild: vi.fn().mockResolvedValue(undefined),
     cleanupCompletedBuild: vi.fn().mockResolvedValue(undefined),
@@ -88,14 +88,14 @@ function plannedBuild(overrides: Record<string, unknown> = {}): ImageBuildPlan {
     failureCallbackUrl: "https://worker.test/image-builds/build-failed",
     buildTimeoutMs: 1800_000,
     correlation: { trace_id: "t", request_id: "r" },
-    provider: "modal",
-    callbackToken: MODAL_CALLBACK_TOKEN,
+    provider: "cloudflare",
+    callbackToken: CALLBACK_TOKEN,
     cloneAuth: { type: "unavailable" },
     ...overrides,
   };
 }
 
-function vercelPlannedBuild(): ImageBuildPlan {
+function altPlannedBuild(): ImageBuildPlan {
   return {
     buildId: "imgb-env_1-1-abcd",
     scope: ENV_SCOPE,
@@ -105,7 +105,7 @@ function vercelPlannedBuild(): ImageBuildPlan {
     failureCallbackUrl: "https://worker.test/image-builds/build-failed",
     buildTimeoutMs: 1800_000,
     correlation: { trace_id: "t", request_id: "r" },
-    provider: "vercel",
+    provider: "cloudflare",
     callbackToken: "callback-token",
     cloneAuth: { type: "unavailable" },
   };
@@ -118,7 +118,7 @@ function createWorkflow(options: {
   resolveTarget?: ReturnType<typeof vi.fn>;
   createCallbackAuth?: ReturnType<typeof vi.fn>;
   env?: Env;
-  provider?: "modal" | "vercel" | "opencomputer" | null;
+  provider?: "cloudflare" | null;
   queue?: ImageBuildFinalizationQueue;
 }) {
   const store = options.store ?? createStore();
@@ -136,11 +136,11 @@ function createWorkflow(options: {
   const createCallbackAuth =
     options.createCallbackAuth ??
     vi.fn().mockResolvedValue({
-      token: MODAL_CALLBACK_TOKEN,
-      tokenHash: "hash-modal",
+      token: CALLBACK_TOKEN,
+      tokenHash: "hash-cloudflare",
       expiresAt: 9_999_999_999_999,
     });
-  const provider = options.provider === undefined ? "modal" : options.provider;
+  const provider = options.provider === undefined ? "cloudflare" : options.provider;
   const planner = { planBuild, resolveTarget, createCallbackAuth } as unknown as NonNullable<
     ConstructorParameters<typeof ImageBuildWorkflow>[3]
   >["planner"];
@@ -159,7 +159,7 @@ const ctx = { trace_id: "t", request_id: "r" };
 function validCompletion(overrides: Record<string, unknown> = {}) {
   return {
     buildId: "imgb-env_1-1-abcd",
-    providerSessionId: "vercel-session-1",
+    providerSessionId: "provider-session-1",
     repositoryShas: [{ repoOwner: "acme", repoName: "web", baseSha: "abc123" }],
     runtimeVersion: "v56-managed-provider-runtime",
     buildDurationSeconds: 12.5,
@@ -184,9 +184,9 @@ describe("ImageBuildWorkflow", () => {
       expect(store.registerBuild).toHaveBeenCalledWith({
         id: result.buildId,
         scope: ENV_SCOPE,
-        provider: "modal",
+        provider: "cloudflare",
         repositoriesFingerprint: "fp-1",
-        callbackTokenHash: "hash-modal",
+        callbackTokenHash: "hash-cloudflare",
         callbackTokenExpiresAt: 9_999_999_999_999,
       });
       expect(adapter.startBuild).toHaveBeenCalledTimes(1);
@@ -228,7 +228,7 @@ describe("ImageBuildWorkflow", () => {
       expect(result.type).toBe("triggered");
       expect(store.markScopeStaleBuildFailed).toHaveBeenCalledWith(
         ENV_SCOPE,
-        "modal",
+        "cloudflare",
         DEFAULT_STALE_BUILD_MAX_AGE_MS
       );
       // The wedged row must be failed before the in-flight read, or the read
@@ -318,7 +318,7 @@ describe("ImageBuildWorkflow", () => {
 
     it("fails a misconfigured provider closed without writing a row", async () => {
       const factoryError = vi.fn(() => {
-        throw new Error("MODAL_WORKSPACE not configured");
+        throw new Error("SANDBOX not configured");
       });
       const store = createStore();
       const adapter = createAdapter();
@@ -327,7 +327,7 @@ describe("ImageBuildWorkflow", () => {
         store as unknown as ImageBuildStore,
         { create: factoryError },
         {
-          provider: "modal",
+          provider: "cloudflare",
           planner: {
             planBuild: vi.fn(),
             resolveTarget: vi.fn().mockResolvedValue({
@@ -353,7 +353,7 @@ describe("ImageBuildWorkflow", () => {
 
     it("marks the build failed when the adapter cannot start it", async () => {
       const adapter = createAdapter();
-      adapter.startBuild.mockRejectedValue(new Error("modal down"));
+      adapter.startBuild.mockRejectedValue(new Error("provider down"));
       const { workflow, store } = createWorkflow({ adapter });
 
       await expect(workflow.triggerBuild(ENV_SCOPE, ctx)).rejects.toBeInstanceOf(
@@ -361,8 +361,8 @@ describe("ImageBuildWorkflow", () => {
       );
       expect(store.markBuildFailed).toHaveBeenCalledWith(
         expect.stringMatching(/^imgb-env_1-/),
-        "modal",
-        "modal down"
+        "cloudflare",
+        "provider down"
       );
     });
 
@@ -397,7 +397,7 @@ describe("ImageBuildWorkflow", () => {
       // build ids stay safe as path segments and provider labels.
       expect(result.buildId).toMatch(/^imgb-acme-web-\d+-/);
       expect(store.registerBuild).toHaveBeenCalledWith(
-        expect.objectContaining({ scope: REPO_SCOPE, provider: "modal" })
+        expect.objectContaining({ scope: REPO_SCOPE, provider: "cloudflare" })
       );
     });
 
@@ -449,7 +449,11 @@ describe("ImageBuildWorkflow", () => {
       const result = await workflow.triggerBuildIfStale(ENV_SCOPE, ctx);
 
       expect(result).toEqual({ type: "up_to_date" });
-      expect(store.hasReadyImageForFingerprint).toHaveBeenCalledWith(ENV_SCOPE, "modal", "fp-1");
+      expect(store.hasReadyImageForFingerprint).toHaveBeenCalledWith(
+        ENV_SCOPE,
+        "cloudflare",
+        "fp-1"
+      );
       expect(store.registerBuild).not.toHaveBeenCalled();
       // A no-op save must not decrypt secrets or mint clone tokens.
       expect(planBuild).not.toHaveBeenCalled();
@@ -473,8 +477,8 @@ describe("ImageBuildWorkflow", () => {
         build: {
           id: "imgb-env_1-1-abcd",
           scope: ENV_SCOPE,
-          provider: "vercel",
-          providerSessionId: "vercel-session-1",
+          provider: "cloudflare",
+          providerSessionId: "provider-session-1",
           status: "building",
         },
       });
@@ -489,15 +493,15 @@ describe("ImageBuildWorkflow", () => {
       });
 
     it("registers the callback token and binds the provider session on trigger", async () => {
-      const planBuild = vi.fn().mockResolvedValue(vercelPlannedBuild());
+      const planBuild = vi.fn().mockResolvedValue(altPlannedBuild());
       const adapter = createAdapter();
       adapter.startBuild.mockImplementation(async (_plan, callbacks) => {
-        await callbacks.bindProviderSession("vercel-session-1");
+        await callbacks.bindProviderSession("provider-session-1");
       });
       const { workflow, store } = createWorkflow({
         planBuild,
         adapter,
-        provider: "vercel",
+        provider: "cloudflare",
         createCallbackAuth: bearerCallbackAuth(),
       });
 
@@ -506,29 +510,29 @@ describe("ImageBuildWorkflow", () => {
       expect(result.type).toBe("triggered");
       expect(store.registerBuild).toHaveBeenCalledWith(
         expect.objectContaining({
-          provider: "vercel",
+          provider: "cloudflare",
           callbackTokenHash: "hash-1",
           callbackTokenExpiresAt: 9_999_999_999_999,
         })
       );
       expect(store.bindProviderSession).toHaveBeenCalledWith(
         expect.stringMatching(/^imgb-env_1-/),
-        "vercel",
-        "vercel-session-1"
+        "cloudflare",
+        "provider-session-1"
       );
     });
 
     it("tears down the build sandbox when the trigger fails after binding", async () => {
-      const planBuild = vi.fn().mockResolvedValue(vercelPlannedBuild());
+      const planBuild = vi.fn().mockResolvedValue(altPlannedBuild());
       const adapter = createAdapter();
       adapter.startBuild.mockImplementation(async (_plan, callbacks) => {
-        await callbacks.bindProviderSession("vercel-session-1");
+        await callbacks.bindProviderSession("provider-session-1");
         throw new Error("launch failed");
       });
       const { workflow, store } = createWorkflow({
         planBuild,
         adapter,
-        provider: "vercel",
+        provider: "cloudflare",
         createCallbackAuth: bearerCallbackAuth(),
       });
 
@@ -537,7 +541,7 @@ describe("ImageBuildWorkflow", () => {
       );
       expect(adapter.cleanupFailedBuild).toHaveBeenCalledWith(
         expect.objectContaining({
-          providerSessionId: "vercel-session-1",
+          providerSessionId: "provider-session-1",
           errorMessage: "launch failed",
         })
       );
@@ -545,15 +549,15 @@ describe("ImageBuildWorkflow", () => {
     });
 
     it("tears down the created sandbox when provider-session binding is rejected", async () => {
-      const planBuild = vi.fn().mockResolvedValue(vercelPlannedBuild());
+      const planBuild = vi.fn().mockResolvedValue(altPlannedBuild());
       const adapter = createAdapter();
       adapter.startBuild.mockImplementation(async (_plan, callbacks) => {
-        await callbacks.bindProviderSession("vercel-session-1");
+        await callbacks.bindProviderSession("provider-session-1");
       });
       const { workflow, store } = createWorkflow({
         planBuild,
         adapter,
-        provider: "vercel",
+        provider: "cloudflare",
         createCallbackAuth: bearerCallbackAuth(),
       });
       store.bindProviderSession.mockResolvedValueOnce(false);
@@ -563,8 +567,8 @@ describe("ImageBuildWorkflow", () => {
       );
       expect(adapter.cleanupFailedBuild).toHaveBeenCalledWith(
         expect.objectContaining({
-          providerSessionId: "vercel-session-1",
-          errorMessage: "Failed to bind vercel build session",
+          providerSessionId: "provider-session-1",
+          errorMessage: "Failed to bind cloudflare build session",
         })
       );
     });
@@ -576,7 +580,7 @@ describe("ImageBuildWorkflow", () => {
 
       const result = await workflow.acceptBuildComplete({
         completion: validCompletion({
-          providerSessionId: "vercel-session-1",
+          providerSessionId: "provider-session-1",
         }),
         callbackToken: "callback-token",
         context: ctx,
@@ -591,15 +595,15 @@ describe("ImageBuildWorkflow", () => {
       expect(store.acceptSuccessfulCompletion).toHaveBeenCalledWith(
         expect.objectContaining({
           buildId: "imgb-env_1-1-abcd",
-          provider: "vercel",
-          providerSessionId: "vercel-session-1",
+          provider: "cloudflare",
+          providerSessionId: "provider-session-1",
           completionHash: expect.stringMatching(/^[a-f0-9]{64}$/),
         })
       );
       expect(store.authorizeCompletionCallback).toHaveBeenCalledWith(
         expect.objectContaining({
           buildId: "imgb-env_1-1-abcd",
-          providerSessionId: "vercel-session-1",
+          providerSessionId: "provider-session-1",
         })
       );
       expect(store.acceptSuccessfulCompletion.mock.invocationCallOrder[0]).toBeLessThan(
@@ -615,7 +619,7 @@ describe("ImageBuildWorkflow", () => {
       await expect(
         workflow.acceptBuildComplete({
           completion: validCompletion({
-            providerSessionId: "vercel-session-1",
+            providerSessionId: "provider-session-1",
           }),
           callbackToken: "callback-token",
           context: ctx,
@@ -636,7 +640,7 @@ describe("ImageBuildWorkflow", () => {
       await expect(
         workflow.acceptBuildComplete({
           completion: validCompletion({
-            providerSessionId: "vercel-session-1",
+            providerSessionId: "provider-session-1",
           }),
           callbackToken: "stale-token",
           context: ctx,
@@ -666,7 +670,7 @@ describe("ImageBuildWorkflow", () => {
       const result = await workflow.acceptBuildFailed({
         failure: {
           buildId: "imgb-env_1-1-abcd",
-          providerSessionId: "vercel-session-1",
+          providerSessionId: "provider-session-1",
           errorMessage: "setup.failed: boom",
         },
         callbackToken: "callback-token",
@@ -682,8 +686,8 @@ describe("ImageBuildWorkflow", () => {
       expect(store.acceptFailedCompletion).toHaveBeenCalledWith(
         expect.objectContaining({
           buildId: "imgb-env_1-1-abcd",
-          provider: "vercel",
-          providerSessionId: "vercel-session-1",
+          provider: "cloudflare",
+          providerSessionId: "provider-session-1",
           errorMessage: "setup.failed: boom",
         })
       );
@@ -699,8 +703,8 @@ describe("ImageBuildWorkflow", () => {
         build: {
           id: "imgb-env_1-1-abcd",
           scope: ENV_SCOPE,
-          provider: "vercel",
-          providerSessionId: "vercel-session-1",
+          provider: "cloudflare",
+          providerSessionId: "provider-session-1",
           status: "building",
         },
       });
@@ -711,7 +715,7 @@ describe("ImageBuildWorkflow", () => {
       await expect(
         workflow.acceptBuildComplete({
           completion: validCompletion({
-            providerSessionId: "vercel-session-1",
+            providerSessionId: "provider-session-1",
           }),
           callbackToken: "callback-token",
           context: ctx,
@@ -732,8 +736,8 @@ describe("ImageBuildWorkflow", () => {
         build: {
           id: "imgb-env_1-1-abcd",
           scope: ENV_SCOPE,
-          provider: "vercel",
-          providerSessionId: "vercel-session-1",
+          provider: "cloudflare",
+          providerSessionId: "provider-session-1",
           status: "failed",
         },
       });
@@ -745,7 +749,7 @@ describe("ImageBuildWorkflow", () => {
         workflow.acceptBuildFailed({
           failure: {
             buildId: "imgb-env_1-1-abcd",
-            providerSessionId: "vercel-session-1",
+            providerSessionId: "provider-session-1",
             errorMessage: "setup.failed: boom",
           },
           callbackToken: "callback-token",
@@ -769,7 +773,7 @@ describe("ImageBuildWorkflow", () => {
         workflow.acceptBuildFailed({
           failure: {
             buildId: "imgb-env_1-1-abcd",
-            providerSessionId: "vercel-session-1",
+            providerSessionId: "provider-session-1",
             errorMessage: "boom",
           },
           callbackToken: "stale-token",
@@ -787,7 +791,7 @@ describe("ImageBuildWorkflow", () => {
         workflow.acceptBuildFailed({
           failure: {
             buildId: "imgb-env_1-1-abcd",
-            providerSessionId: "vercel-session-1",
+            providerSessionId: "provider-session-1",
             errorMessage: "boom",
           },
           callbackToken: "stale-token",
@@ -803,7 +807,7 @@ describe("ImageBuildWorkflow", () => {
         id,
         scope_kind: "environment" as const,
         scope_id: "env_1",
-        provider: "modal" as const,
+        provider: "cloudflare" as const,
         provider_image_id: providerImageId,
         provider_session_id: null,
         created_at: Number(id.replace(/\D/g, "")) || 1,

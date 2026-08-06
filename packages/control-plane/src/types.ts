@@ -10,6 +10,7 @@ import type {
   SessionStatus,
 } from "@open-inspect/shared";
 import { z } from "zod";
+import type { Sandbox } from "@cloudflare/sandbox";
 import type { ImageBuildFinalizationJob } from "./image-builds/finalization-job";
 
 export type {
@@ -42,6 +43,10 @@ export type { ClientMessage } from "@open-inspect/shared/types/websocket";
 export interface Env {
   // Durable Objects
   SESSION: DurableObjectNamespace;
+  // @cloudflare/sandbox Durable Object binding — only present when
+  // SANDBOX_PROVIDER=cloudflare. Wired up by Terraform/wrangler config
+  // alongside the Worker's `export { Sandbox } from "@cloudflare/sandbox"`.
+  SANDBOX?: DurableObjectNamespace<Sandbox>;
 
   // KV Namespaces
   REPOS_CACHE: KVNamespace; // Short-lived cache for /repos listing
@@ -70,13 +75,7 @@ export interface Env {
   BROWSER_AUTH_SECRET?: string;
   TOKEN_ENCRYPTION_KEY: string;
   REPO_SECRETS_ENCRYPTION_KEY?: string;
-  MODAL_TOKEN_ID?: string;
-  MODAL_TOKEN_SECRET?: string;
-  MODAL_API_SECRET?: string; // Shared secret for authenticating with Modal endpoints
   ANTHROPIC_API_KEY?: string; // Anthropic API key for Claude models
-  DAYTONA_API_KEY?: string; // Daytona REST API key (Bearer auth + HMAC derivation)
-  OPENCOMPUTER_API_KEY?: string; // OpenComputer REST API key (X-API-Key auth + HMAC derivation)
-  VERCEL_TOKEN?: string; // Vercel API access token for Sandbox API
   // Pepper for image-build callback token hashes.
   IMAGE_CALLBACK_TOKEN_PEPPER?: string;
   // Per-service sig1 verification keys. Absent ⇒ that service cannot
@@ -108,30 +107,16 @@ export interface Env {
   ALLOWED_GITHUB_ORGS?: string;
   UNSAFE_ALLOW_ALL_USERS?: string;
   CF_ACCOUNT_ID?: string; // Cloudflare account ID
-  SANDBOX_PROVIDER?: string; // "modal" (default), "daytona", "vercel", "opencomputer", or "e2b"
-  MODAL_WORKSPACE?: string; // Modal workspace name
-  MODAL_ENVIRONMENT?: string; // Modal environment name for dashboard URLs
-  MODAL_ENVIRONMENT_WEB_SUFFIX?: string; // Modal environment web suffix for endpoint URLs
-  DAYTONA_API_URL?: string; // Daytona REST API base URL
-  DAYTONA_BASE_SNAPSHOT?: string; // Named Daytona snapshot used for fresh sandbox creation
-  DAYTONA_AUTO_STOP_INTERVAL_MINUTES?: string; // Daytona idle stop interval in minutes
-  DAYTONA_AUTO_ARCHIVE_INTERVAL_MINUTES?: string; // Daytona archive interval in minutes
-  DAYTONA_TARGET?: string; // Optional Daytona target name
-  OPENCOMPUTER_API_URL?: string; // OpenComputer REST API base URL
-  OPENCOMPUTER_TEMPLATE?: string; // Declarative template containing sandbox runtime
-  VERCEL_PROJECT_ID?: string; // Vercel project ID used for Sandbox API scope
-  VERCEL_TEAM_ID?: string; // Optional Vercel team ID used for Sandbox API scope
-  VERCEL_BASE_SNAPSHOT_ID?: string; // Optional prebuilt base snapshot with sandbox runtime
-  VERCEL_BASE_SNAPSHOT_NAME?: string; // Optional managed base snapshot sandbox name
-  VERCEL_RUNTIME?: string; // Vercel sandbox runtime (default: node24)
-  VERCEL_SANDBOX_API_BASE_URL?: string; // Override for tests or non-default Vercel API base URL
-  VERCEL_SNAPSHOT_EXPIRATION_MS?: string; // Snapshot expiration in ms; 0 means no expiration
 
-  E2B_API_KEY?: string; // E2B REST API key (X-API-Key header + HMAC derivation)
-  E2B_API_URL?: string; // E2B REST API base URL (default https://api.e2b.app)
-  E2B_TEMPLATE_ID?: string; // Pre-built E2B template ID
-  E2B_SANDBOX_TIMEOUT_SECONDS?: string; // Sandbox TTL in seconds; Hobby plans must set 3300
-  E2B_AUTO_PAUSE?: string; // "true" (default) pauses on TTL expiry (resumable, auto-resumes) instead of killing
+  // Wildcard custom domain backing @cloudflare/sandbox exposePort() preview URLs
+  // (code-server, ttyd, tunnel ports). Required for code-server/tunnel access
+  // when SANDBOX_PROVIDER=cloudflare — .workers.dev doesn't support the
+  // wildcard subdomain routing exposePort() needs.
+  SANDBOX_PREVIEW_DOMAIN?: string;
+  // Secret used for HMAC derivation of code-server passwords on the Cloudflare
+  // sandbox provider (mirrors *_API_KEY reuse on the REST-style providers,
+  // which have no equivalent secret of their own).
+  CLOUDFLARE_SANDBOX_CODE_SERVER_PASSWORD_SECRET?: string;
 
   // Sandbox lifecycle configuration
   SANDBOX_INACTIVITY_TIMEOUT_MS?: string; // Inactivity timeout in ms (default: 600000 = 10 min)

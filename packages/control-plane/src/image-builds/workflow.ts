@@ -523,7 +523,7 @@ export class ImageBuildWorkflow {
 }
 
 export function createImageBuildWorkflowFromEnv(env: Env, db: SqlDatabase): ImageBuildWorkflow {
-  const provider = resolveImageBuildProvider(env.SANDBOX_PROVIDER);
+  const provider = resolveImageBuildProvider();
   const finalizationQueue = env.IMAGE_BUILD_FINALIZATION_QUEUE
     ? {
         async send(

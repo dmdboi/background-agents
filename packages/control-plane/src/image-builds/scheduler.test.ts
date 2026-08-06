@@ -11,7 +11,7 @@ import type { ImageBuildWorkflow } from "./workflow";
 
 function harness(
   options: {
-    provider?: "modal" | null;
+    provider?: "cloudflare" | null;
     sourceControl?: SourceControlProvider | null;
     env?: Env;
   } = {}
@@ -19,7 +19,7 @@ function harness(
   const listSessionCleanup = vi.fn(async () => [
     {
       id: "failed-cleanup",
-      provider: "modal",
+      provider: "cloudflare",
       status: "failed",
       provider_image_id: null,
       provider_session_id: "session-1",
@@ -27,7 +27,7 @@ function harness(
     },
     {
       id: "ready-cleanup",
-      provider: "modal",
+      provider: "cloudflare",
       status: "ready",
       provider_image_id: "image-1",
       provider_session_id: "session-2",
@@ -46,7 +46,7 @@ function harness(
   const getReconciliationStatus = vi.fn(
     async (
       _scope: ImageBuildScope,
-      _provider: "modal"
+      _provider: "cloudflare"
     ): Promise<Awaited<ReturnType<ImageBuildStore["getReconciliationStatus"]>>> => []
   );
   const store = {
@@ -93,7 +93,7 @@ function harness(
   const scheduler = new ImageBuildScheduler(
     options.env ?? ({} as Env),
     {} as SqlDatabase,
-    options.provider === undefined ? "modal" : options.provider,
+    options.provider === undefined ? "cloudflare" : options.provider,
     store as unknown as ImageBuildStore,
     workflow as unknown as ImageBuildWorkflow,
     { create: vi.fn(() => adapter) } as unknown as ImageBuildAdapterFactory,
@@ -142,7 +142,7 @@ describe("ImageBuildScheduler", () => {
     expect(resolveTarget).toHaveBeenCalledOnce();
     expect(store.getReconciliationStatus).toHaveBeenCalledWith(
       { kind: "repo", id: "acme/web" },
-      "modal"
+      "cloudflare"
     );
   });
 
@@ -154,7 +154,7 @@ describe("ImageBuildScheduler", () => {
     listSessionCleanup.mockResolvedValue(
       Array.from({ length: 12 }, (_, index) => ({
         id: `cleanup-${index}`,
-        provider: "modal" as const,
+        provider: "cloudflare" as const,
         status: "failed" as const,
         provider_image_id: null,
         provider_session_id: `session-${index}`,
@@ -222,7 +222,7 @@ describe("ImageBuildScheduler", () => {
           id: `build-${scope.id}`,
           scope_kind: scope.kind,
           scope_id: scope.id,
-          provider: "modal",
+          provider: "cloudflare",
           status: "ready",
           repositories_fingerprint: target.repositoriesFingerprint,
           repository_shas: JSON.stringify(

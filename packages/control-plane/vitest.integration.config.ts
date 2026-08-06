@@ -4,7 +4,7 @@ import path from "path";
 import { webcrypto } from "node:crypto";
 import { createRequire } from "node:module";
 
-const migrationsPath = path.resolve(__dirname, "../../terraform/d1/migrations");
+const migrationsPath = path.resolve(__dirname, "./migrations");
 
 // Pin luxon to its CommonJS build. vite 8 resolves luxon via the "import"
 // condition to its ESM build, but cron-parser (a CJS transitive dep of

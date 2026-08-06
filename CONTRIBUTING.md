@@ -19,7 +19,7 @@ bash .openinspect/setup.sh
 ```
 
 This handles npm dependencies, builds the shared package, configures git hooks (husky +
-lint-staged), and optionally sets up a Python virtualenv for `packages/modal-infra`.
+lint-staged), and optionally sets up a Python virtualenv for `packages/sandbox-runtime`.
 
 See [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) for full deployment instructions. See
 [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) for local setup and day-to-day development paths.
@@ -50,8 +50,6 @@ npm test
 | `packages/control-plane`   | Cloudflare Workers + Durable Objects |
 | `packages/web`             | Next.js web application              |
 | `packages/sandbox-runtime` | Shared in-sandbox agent runtime      |
-| `packages/modal-infra`     | Modal sandbox infrastructure         |
-| `packages/daytona-infra`   | Daytona snapshot infrastructure      |
 | `packages/shared`          | Shared types and utilities           |
 
 ## Making Changes

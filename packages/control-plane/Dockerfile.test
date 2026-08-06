@@ -7,6 +7,5 @@ COPY packages/control-plane/package.json packages/control-plane/
 RUN npm ci --workspace=@open-inspect/shared --workspace=@open-inspect/control-plane
 COPY packages/shared/ packages/shared/
 COPY packages/control-plane/ packages/control-plane/
-COPY terraform/d1/migrations/ terraform/d1/migrations/
 RUN npm run build -w @open-inspect/shared
 CMD ["npm", "run", "test:integration", "-w", "@open-inspect/control-plane"]

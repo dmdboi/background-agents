@@ -15,7 +15,7 @@ const correlation = { request_id: "queue-1", trace_id: "queue-1" };
 function row(overrides: Partial<ImageBuildFinalizationRow> = {}): ImageBuildFinalizationRow {
   return {
     id: "build-1",
-    provider: "modal",
+    provider: "cloudflare",
     status: "building",
     provider_image_id: null,
     provider_session_id: "session-1",
@@ -253,7 +253,7 @@ describe("ImageBuildFinalizer", () => {
     expect(adapter.deleteImage).not.toHaveBeenCalled();
     expect(store.tryMarkImageBuildReady).toHaveBeenCalledWith(
       "build-1",
-      "modal",
+      "cloudflare",
       "image-1",
       expect.any(Array),
       "v53-runtime",

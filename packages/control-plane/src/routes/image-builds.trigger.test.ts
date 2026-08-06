@@ -1,45 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getSandbox } from "@cloudflare/sandbox";
 import { createRequestMetrics } from "../db/instrumented-d1";
 import { ImageBuildStore } from "../db/image-builds";
 import { RepoMetadataStore } from "../db/repo-metadata";
+import { CloudflareSandboxProvider } from "../sandbox/providers/cloudflare-provider";
 import { imageBuildRoutes } from "./image-builds";
 import type { Env } from "../types";
 import type { RequestContext, Route } from "./shared";
 import type { SqlDatabase } from "../db/sql-database";
 import type { RepositoryAccessResult } from "../source-control";
 import type * as SourceControlModule from "../source-control";
-import type * as SandboxClientModule from "../sandbox/client";
-import type * as VercelProviderModule from "../sandbox/providers/vercel/provider";
-import type * as VercelClientModule from "../sandbox/providers/vercel/client";
-import type * as OpenComputerProviderModule from "../sandbox/providers/opencomputer-provider";
-import type * as OpenComputerClientModule from "../sandbox/opencomputer-rest-client";
 import type * as IntegrationSettingsResolutionModule from "../session/integration-settings-resolution";
 
 // The repo trigger resolves the repo's actual default branch (never assumes
 // "main") and threads it into the build's repository set + fingerprint + the
-// build backend. The #757 regression hardcoded "main" in BOTH the Modal and
-// Vercel branches, so these tests pin the resolved branch reaching each
-// backend, and that a repo which can't be resolved fails instead of building
-// "main". The toggle tests pin the save-hook parity change: toggling a repo's
-// prebuild on triggers a build immediately instead of waiting for the cron.
+// build backend. The #757 regression hardcoded "main" in the build backend,
+// so these tests pin the resolved branch reaching the Cloudflare backend, and
+// that a repo which can't be resolved fails instead of building "main". The
+// toggle tests pin the save-hook parity change: toggling a repo's prebuild on
+// triggers a build immediately instead of waiting for the cron.
 
 const scmProvider = vi.hoisted(() => ({
   checkRepositoryAccess: vi.fn(),
   generateCredentialHelperAuth: vi.fn(),
-}));
-
-const modalClient = vi.hoisted(() => ({
-  createImageBuildSandbox: vi.fn(),
-  startImageBuildSandbox: vi.fn(),
-  terminateImageBuildSandbox: vi.fn(),
-}));
-
-const vercelProvider = vi.hoisted(() => ({
-  triggerImageBuild: vi.fn(),
-}));
-
-const openComputerProvider = vi.hoisted(() => ({
-  triggerImageBuild: vi.fn(),
 }));
 
 const integrationSettings = vi.hoisted(() => ({
@@ -58,45 +41,9 @@ vi.mock("../source-control", async (importOriginal) => {
   };
 });
 
-vi.mock("../sandbox/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof SandboxClientModule>();
-  return {
-    ...actual,
-    createModalClient: vi.fn(() => modalClient),
-  };
-});
-
-vi.mock("../sandbox/providers/vercel/provider", async (importOriginal) => {
-  const actual = await importOriginal<typeof VercelProviderModule>();
-  return {
-    ...actual,
-    createVercelProvider: vi.fn(() => vercelProvider),
-  };
-});
-
-vi.mock("../sandbox/providers/vercel/client", async (importOriginal) => {
-  const actual = await importOriginal<typeof VercelClientModule>();
-  return {
-    ...actual,
-    createVercelSandboxClient: vi.fn(() => ({})),
-  };
-});
-
-vi.mock("../sandbox/providers/opencomputer-provider", async (importOriginal) => {
-  const actual = await importOriginal<typeof OpenComputerProviderModule>();
-  return {
-    ...actual,
-    createOpenComputerProvider: vi.fn(() => openComputerProvider),
-  };
-});
-
-vi.mock("../sandbox/opencomputer-rest-client", async (importOriginal) => {
-  const actual = await importOriginal<typeof OpenComputerClientModule>();
-  return {
-    ...actual,
-    createOpenComputerRestClient: vi.fn(() => ({})),
-  };
-});
+vi.mock("@cloudflare/sandbox", () => ({
+  getSandbox: vi.fn(),
+}));
 
 vi.mock("../session/integration-settings-resolution", async (importOriginal) => {
   const actual = await importOriginal<typeof IntegrationSettingsResolutionModule>();
@@ -139,43 +86,15 @@ function createContext(waitUntilTasks?: Promise<unknown>[]): RequestContext {
   };
 }
 
-function createModalEnv(): Env {
+function createCloudflareEnv(): Env {
   return {
     DB: {} as unknown as D1Database,
-    SANDBOX_PROVIDER: "modal",
-    WORKER_URL: "https://cp.test",
-    MODAL_API_SECRET: "modal-secret",
-    MODAL_WORKSPACE: "modal-ws",
-    IMAGE_BUILD_FINALIZATION_QUEUE: finalizationQueue,
-    // Modal builds mint callback tokens like every provider.
-    IMAGE_CALLBACK_TOKEN_PEPPER: "test-callback-pepper",
-  } as Env;
-}
-
-function createVercelEnv(): Env {
-  return {
-    DB: {} as unknown as D1Database,
-    SANDBOX_PROVIDER: "vercel",
+    SANDBOX: {} as unknown as Env["SANDBOX"],
     SCM_PROVIDER: "github",
     WORKER_URL: "https://cp.test",
-    IMAGE_CALLBACK_TOKEN_PEPPER: "test-callback-pepper",
-    VERCEL_TOKEN: "vercel-token",
-    VERCEL_PROJECT_ID: "project-123",
+    CLOUDFLARE_SANDBOX_CODE_SERVER_PASSWORD_SECRET: "code-server-secret",
     IMAGE_BUILD_FINALIZATION_QUEUE: finalizationQueue,
-  } as Env;
-}
-
-function createOpenComputerEnv(): Env {
-  return {
-    DB: {} as unknown as D1Database,
-    SANDBOX_PROVIDER: "opencomputer",
-    SCM_PROVIDER: "github",
-    WORKER_URL: "https://cp.test",
     IMAGE_CALLBACK_TOKEN_PEPPER: "test-callback-pepper",
-    OPENCOMPUTER_API_URL: "https://opencomputer.test",
-    OPENCOMPUTER_API_KEY: "oc-token",
-    OPENCOMPUTER_TEMPLATE: "openinspect-runtime",
-    IMAGE_BUILD_FINALIZATION_QUEUE: finalizationQueue,
   } as Env;
 }
 
@@ -224,6 +143,17 @@ const hasReadyImageSpy = vi.spyOn(ImageBuildStore.prototype, "hasReadyImageForFi
 const markBuildFailedSpy = vi.spyOn(ImageBuildStore.prototype, "markBuildFailed");
 const bindProviderSessionSpy = vi.spyOn(ImageBuildStore.prototype, "bindProviderSession");
 const setImageBuildEnabledSpy = vi.spyOn(RepoMetadataStore.prototype, "setImageBuildEnabled");
+const triggerImageBuildSpy = vi.spyOn(CloudflareSandboxProvider.prototype, "triggerImageBuild");
+
+function mockGetSandbox() {
+  return getSandbox as unknown as ReturnType<typeof vi.fn>;
+}
+
+function createMockSandbox() {
+  return {
+    startProcess: vi.fn(async () => ({ id: "process-1" })),
+  };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -233,13 +163,7 @@ beforeEach(() => {
   markBuildFailedSpy.mockResolvedValue(true);
   setImageBuildEnabledSpy.mockResolvedValue(undefined);
   bindProviderSessionSpy.mockResolvedValue(true);
-  modalClient.createImageBuildSandbox.mockResolvedValue({
-    providerSessionId: "modal-session-1",
-  });
-  modalClient.startImageBuildSandbox.mockResolvedValue(undefined);
-  modalClient.terminateImageBuildSandbox.mockResolvedValue(undefined);
-  vercelProvider.triggerImageBuild.mockResolvedValue(undefined);
-  openComputerProvider.triggerImageBuild.mockResolvedValue(undefined);
+  mockGetSandbox().mockReturnValue(createMockSandbox());
   integrationSettings.resolveSandboxSettings.mockResolvedValue({});
   scmProvider.generateCredentialHelperAuth.mockResolvedValue({
     username: "x-access-token",
@@ -248,10 +172,12 @@ beforeEach(() => {
 });
 
 describe("POST /image-builds/trigger/repo/:owner/:name", () => {
-  it("threads the resolved default branch into the Modal build backend", async () => {
+  it("threads the resolved default branch into the Cloudflare build backend", async () => {
     scmProvider.checkRepositoryAccess.mockResolvedValue(RESOLVED_REPO);
+    const sandbox = createMockSandbox();
+    mockGetSandbox().mockReturnValue(sandbox);
 
-    const response = await callTrigger(createModalEnv());
+    const response = await callTrigger(createCloudflareEnv());
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -266,87 +192,36 @@ describe("POST /image-builds/trigger/repo/:owner/:name", () => {
       name: "repo",
     });
 
-    // The resolved branch — not "main" — reaches the Modal backend as the
+    // The resolved branch — not "main" — reaches the Cloudflare backend as the
     // one-element repository set...
-    expect(modalClient.createImageBuildSandbox).toHaveBeenCalledTimes(1);
-    expect(modalClient.createImageBuildSandbox).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scopeKind: "repo",
-        scopeId: "acme/repo",
-        repositories: REPO_REPOSITORIES,
-        providerSessionTimeoutSeconds: 2400,
-        cloneToken: "clone-token",
-      }),
-      expect.any(Object)
+    expect(triggerImageBuildSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ repositories: REPO_REPOSITORIES })
     );
+    expect(sandbox.startProcess).toHaveBeenCalledTimes(1);
+    expect(scmProvider.generateCredentialHelperAuth).toHaveBeenCalled();
     expect(bindProviderSessionSpy).toHaveBeenCalledWith(
       expect.stringContaining("imgb-acme-repo-"),
-      "modal",
-      "modal-session-1"
+      "cloudflare",
+      expect.any(String)
     );
-    expect(modalClient.startImageBuildSandbox).toHaveBeenCalledTimes(1);
-    expect(scmProvider.generateCredentialHelperAuth).toHaveBeenCalled();
 
     // ...and is baked into the persisted fingerprint.
     expect(registerBuildSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         scope: { kind: "repo", id: "acme/repo" },
-        provider: "modal",
+        provider: "cloudflare",
         repositoriesFingerprint: expect.any(String),
       })
-    );
-  });
-
-  it("threads the resolved default branch into the Vercel build backend", async () => {
-    scmProvider.checkRepositoryAccess.mockResolvedValue(RESOLVED_REPO);
-
-    const response = await callTrigger(createVercelEnv());
-
-    expect(response.status).toBe(200);
-    expect(vercelProvider.triggerImageBuild).toHaveBeenCalledTimes(1);
-    expect(vercelProvider.triggerImageBuild).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scopeKind: "repo",
-        scopeId: "acme/repo",
-        repositories: REPO_REPOSITORIES,
-        cloneToken: "clone-token",
-      })
-    );
-    expect(registerBuildSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scope: { kind: "repo", id: "acme/repo" },
-        provider: "vercel",
-        callbackTokenHash: expect.any(String),
-      })
-    );
-  });
-
-  it("threads the clone token into the OpenComputer build backend", async () => {
-    scmProvider.checkRepositoryAccess.mockResolvedValue(RESOLVED_REPO);
-
-    const response = await callTrigger(createOpenComputerEnv());
-
-    expect(response.status).toBe(200);
-    expect(scmProvider.generateCredentialHelperAuth).toHaveBeenCalled();
-    expect(openComputerProvider.triggerImageBuild).toHaveBeenCalledTimes(1);
-    expect(openComputerProvider.triggerImageBuild).toHaveBeenCalledWith(
-      expect.objectContaining({
-        scopeKind: "repo",
-        scopeId: "acme/repo",
-        repositories: REPO_REPOSITORIES,
-        cloneToken: "clone-token",
-      })
-    );
-    expect(registerBuildSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "opencomputer" })
     );
   });
 
   it("resolves the repo's sandbox settings without an environment layer and clamps the timeout", async () => {
     scmProvider.checkRepositoryAccess.mockResolvedValue(RESOLVED_REPO);
     integrationSettings.resolveSandboxSettings.mockResolvedValue({ buildTimeoutSeconds: 5000 });
+    const sandbox = createMockSandbox();
+    mockGetSandbox().mockReturnValue(sandbox);
 
-    const response = await callTrigger(createModalEnv());
+    const response = await callTrigger(createCloudflareEnv());
 
     expect(response.status).toBe(200);
     expect(integrationSettings.resolveSandboxSettings).toHaveBeenCalledWith(
@@ -354,17 +229,21 @@ describe("POST /image-builds/trigger/repo/:owner/:name", () => {
       "acme",
       "repo"
     );
-    expect(modalClient.createImageBuildSandbox).toHaveBeenCalledWith(
-      expect.objectContaining({ providerSessionTimeoutSeconds: 4200 }),
-      expect.any(Object)
+    // 5000s requested clamps to the shared provider-session ceiling.
+    expect(triggerImageBuildSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ providerSessionTimeoutSeconds: expect.any(Number) })
     );
+    const [{ providerSessionTimeoutSeconds }] = triggerImageBuildSpy.mock.calls[0];
+    expect(providerSessionTimeoutSeconds).toBeLessThan(5000);
   });
 
   it("reports the in-flight build instead of stacking another", async () => {
     scmProvider.checkRepositoryAccess.mockResolvedValue(RESOLVED_REPO);
     getActiveBuildSpy.mockResolvedValue({ id: "imgb-acme-repo-existing" });
+    const sandbox = createMockSandbox();
+    mockGetSandbox().mockReturnValue(sandbox);
 
-    const response = await callTrigger(createModalEnv());
+    const response = await callTrigger(createCloudflareEnv());
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
@@ -373,26 +252,30 @@ describe("POST /image-builds/trigger/repo/:owner/:name", () => {
       alreadyBuilding: true,
     });
     expect(registerBuildSpy).not.toHaveBeenCalled();
-    expect(modalClient.createImageBuildSandbox).not.toHaveBeenCalled();
+    expect(sandbox.startProcess).not.toHaveBeenCalled();
   });
 
   it("returns 404 without building when the repository is not installed", async () => {
     scmProvider.checkRepositoryAccess.mockResolvedValue(null);
+    const sandbox = createMockSandbox();
+    mockGetSandbox().mockReturnValue(sandbox);
 
-    const response = await callTrigger(createModalEnv());
+    const response = await callTrigger(createCloudflareEnv());
 
     expect(response.status).toBe(404);
-    expect(modalClient.createImageBuildSandbox).not.toHaveBeenCalled();
+    expect(sandbox.startProcess).not.toHaveBeenCalled();
     expect(registerBuildSpy).not.toHaveBeenCalled();
   });
 
   it("returns 500 without building when repository resolution fails", async () => {
     scmProvider.checkRepositoryAccess.mockRejectedValue(new Error("github unavailable"));
+    const sandbox = createMockSandbox();
+    mockGetSandbox().mockReturnValue(sandbox);
 
-    const response = await callTrigger(createModalEnv());
+    const response = await callTrigger(createCloudflareEnv());
 
     expect(response.status).toBe(500);
-    expect(modalClient.createImageBuildSandbox).not.toHaveBeenCalled();
+    expect(sandbox.startProcess).not.toHaveBeenCalled();
     expect(registerBuildSpy).not.toHaveBeenCalled();
   });
 });
@@ -400,9 +283,11 @@ describe("POST /image-builds/trigger/repo/:owner/:name", () => {
 describe("PUT /image-builds/toggle/repo/:owner/:name", () => {
   it("writes the flag and triggers a stale-checked build on toggle-on", async () => {
     scmProvider.checkRepositoryAccess.mockResolvedValue(RESOLVED_REPO);
+    const sandbox = createMockSandbox();
+    mockGetSandbox().mockReturnValue(sandbox);
     const waitUntilTasks: Promise<unknown>[] = [];
 
-    const response = await callToggle(createModalEnv(), { enabled: true }, waitUntilTasks);
+    const response = await callToggle(createCloudflareEnv(), { enabled: true }, waitUntilTasks);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, enabled: true });
@@ -415,26 +300,28 @@ describe("PUT /image-builds/toggle/repo/:owner/:name", () => {
     expect(registerBuildSpy).toHaveBeenCalledWith(
       expect.objectContaining({ scope: { kind: "repo", id: "acme/repo" } })
     );
-    expect(modalClient.createImageBuildSandbox).toHaveBeenCalledTimes(1);
+    expect(sandbox.startProcess).toHaveBeenCalledTimes(1);
   });
 
   it("skips the build when a ready image already matches the repository set", async () => {
     scmProvider.checkRepositoryAccess.mockResolvedValue(RESOLVED_REPO);
     hasReadyImageSpy.mockResolvedValue(true);
+    const sandbox = createMockSandbox();
+    mockGetSandbox().mockReturnValue(sandbox);
     const waitUntilTasks: Promise<unknown>[] = [];
 
-    const response = await callToggle(createModalEnv(), { enabled: true }, waitUntilTasks);
+    const response = await callToggle(createCloudflareEnv(), { enabled: true }, waitUntilTasks);
 
     expect(response.status).toBe(200);
     await Promise.all(waitUntilTasks);
     expect(registerBuildSpy).not.toHaveBeenCalled();
-    expect(modalClient.createImageBuildSandbox).not.toHaveBeenCalled();
+    expect(sandbox.startProcess).not.toHaveBeenCalled();
   });
 
   it("writes the flag without triggering on toggle-off", async () => {
     const waitUntilTasks: Promise<unknown>[] = [];
 
-    const response = await callToggle(createModalEnv(), { enabled: false }, waitUntilTasks);
+    const response = await callToggle(createCloudflareEnv(), { enabled: false }, waitUntilTasks);
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true, enabled: false });
@@ -444,7 +331,7 @@ describe("PUT /image-builds/toggle/repo/:owner/:name", () => {
   });
 
   it("rejects a non-boolean enabled", async () => {
-    const response = await callToggle(createModalEnv(), { enabled: "yes" });
+    const response = await callToggle(createCloudflareEnv(), { enabled: "yes" });
 
     expect(response.status).toBe(400);
     expect(setImageBuildEnabledSpy).not.toHaveBeenCalled();
@@ -454,7 +341,7 @@ describe("PUT /image-builds/toggle/repo/:owner/:name", () => {
     scmProvider.checkRepositoryAccess.mockResolvedValue(null);
     const waitUntilTasks: Promise<unknown>[] = [];
 
-    const response = await callToggle(createModalEnv(), { enabled: true }, waitUntilTasks);
+    const response = await callToggle(createCloudflareEnv(), { enabled: true }, waitUntilTasks);
 
     expect(response.status).toBe(404);
     expect(setImageBuildEnabledSpy).not.toHaveBeenCalled();
@@ -465,7 +352,7 @@ describe("PUT /image-builds/toggle/repo/:owner/:name", () => {
     scmProvider.checkRepositoryAccess.mockRejectedValue(new Error("github unavailable"));
     const waitUntilTasks: Promise<unknown>[] = [];
 
-    const response = await callToggle(createModalEnv(), { enabled: true }, waitUntilTasks);
+    const response = await callToggle(createCloudflareEnv(), { enabled: true }, waitUntilTasks);
 
     expect(response.status).toBe(500);
     expect(setImageBuildEnabledSpy).not.toHaveBeenCalled();
@@ -475,7 +362,7 @@ describe("PUT /image-builds/toggle/repo/:owner/:name", () => {
   it("disables without resolving so an unresolvable repo stays disableable", async () => {
     scmProvider.checkRepositoryAccess.mockRejectedValue(new Error("github unavailable"));
 
-    const response = await callToggle(createModalEnv(), { enabled: false });
+    const response = await callToggle(createCloudflareEnv(), { enabled: false });
 
     expect(response.status).toBe(200);
     expect(setImageBuildEnabledSpy).toHaveBeenCalledWith("acme", "repo", false);

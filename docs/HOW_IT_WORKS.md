@@ -127,7 +127,8 @@ but no environment-scoped secrets or prebuilds; the picker offers to save the se
 
 ## Architecture
 
-Open-Inspect uses a three-tier architecture spanning multiple cloud providers:
+Open-Inspect deploys entirely to Cloudflare — control plane, web app, bot Workers, and sandbox
+execution all run as Cloudflare Workers and Containers in one account:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -191,33 +192,26 @@ does not stop the sandbox: the bridge reconnects while the control plane schedul
 in case the process is actually gone. Explicit lifecycle paths such as inactivity and stale
 heartbeat persist `stopped` or `stale` before closing the connection, which prevents reconnection.
 
-### Data Plane (Sandbox Backends)
+### Data Plane (Sandbox Backend)
 
 The data plane is where code actually runs. Each session gets an isolated sandbox with a full
-development environment.
+development environment, running as a Cloudflare Container addressed through the
+`@cloudflare/sandbox` SDK. `getSandbox()` returns a Durable-Object-backed stub synchronously — no
+separate provider API or network round trip to create one; the container starts lazily on first
+operation.
 
 **What's in a sandbox:**
 
-- Debian Linux with common dev tools
+- Ubuntu 22.04 base image (`docker.io/cloudflare/sandbox`) with common dev tools
 - Node.js 22, Python 3.12, git, curl
 - Package managers: npm, pnpm, pip, uv
 - agent-browser CLI + headless Chrome (for browser automation)
 - OpenCode (the coding agent)
 
-Open-Inspect supports these sandbox backends:
-
-- **Modal**: near-instant startup plus filesystem snapshot restore
-- **Daytona**: persistent stop/start sandboxes via direct REST API calls
-- **Vercel Sandboxes**: filesystem snapshot restore and prebuilt-image builds via the Vercel Sandbox
-  API
-- **OpenComputer**: template-based sandboxes with checkpoint-backed prebuilt-image builds via the
-  OpenComputer REST API
-- **E2B**: template-based sandboxes with persistent pause/resume via direct E2B REST API calls
-
-Prebuilt-image builds are supported on Modal, Vercel, and OpenComputer. Saved filesystem state can
-be restored on those same providers for session resumes; Daytona and E2B use persistent sandboxes
-instead. For Daytona and E2B, the control plane stops or pauses the sandbox on inactivity or stale
-heartbeat, then resumes that same sandbox later.
+The sandbox supports filesystem snapshots (`createBackup()`/`restoreBackup()` on the same
+`/workspace` directory) for both prebuilt images and session-resume snapshots, and explicit stop via
+`sandbox.destroy()`. There is no provider-enforced sandbox TTL — the control plane's own inactivity
+and execution timeouts bound sandbox life.
 
 ### Clients
 
@@ -279,8 +273,7 @@ When restoring from a previous snapshot:
 └─────────────┘    └────────────┘    └─────────────┘    └───────┘
 ```
 
-1. **Restore snapshot**: The selected snapshot-capable provider restores the filesystem from a saved
-   snapshot or checkpoint
+1. **Restore snapshot**: The sandbox restores its `/workspace` filesystem from a saved backup
 2. **Quick sync**: Pulls latest changes (usually just a few commits)
 3. **Start script**: Runs `.openinspect/start.sh` for runtime startup (if present)
 4. **Ready**: Sandbox is ready almost instantly
@@ -324,8 +317,8 @@ can read them locally.
 ```dotenv
 # /workspace/.tunnels.env
 TUNNEL_SANDBOX_ID=sandbox-acme-app-1783614336426
-TUNNEL_3000=https://abc123-3000.modal.host
-TUNNEL_5173=https://abc123-5173.modal.host
+TUNNEL_3000=https://abc123-3000.preview.example.com
+TUNNEL_5173=https://abc123-5173.preview.example.com
 ```
 
 This dotenv shape works directly with tools that accept an env-file path — `node --env-file=...`,
@@ -490,25 +483,20 @@ That's potentially minutes before the agent can start working.
 
 ### How Snapshots Solve This
 
-Provider snapshots and checkpoints let us capture a sandbox's state after setup:
+Sandbox backups (`createBackup()`/`restoreBackup()` on the `/workspace` directory) let us capture a
+sandbox's state after setup:
 
 ```
-First session:  Clone ─▶ Install/Build ─▶ Start Runtime ─▶ [Snapshot] ─▶ Work
+First session:  Clone ─▶ Install/Build ─▶ Start Runtime ─▶ [Backup] ─▶ Work
                               (slow)
 
-Later sessions: [Restore Snapshot] ─▶ Quick sync ─▶ Start Runtime ─▶ Work
+Later sessions: [Restore Backup] ─▶ Quick sync ─▶ Start Runtime ─▶ Work
                      (fast)
 ```
 
-The first session for a repo pays the setup cost. Subsequent sessions restore in seconds when the
-active provider supports saved filesystem state.
-
-For Vercel, Terraform builds a base-runtime snapshot from the local checkout and wires a
-deterministic snapshot name into `VERCEL_BASE_SNAPSHOT_NAME`. Fresh Vercel sandboxes resolve that
-name to the newest created snapshot instead of cloning and installing the sandbox runtime on every
-session. OpenComputer uses a managed template plus checkpoints for the same prebuilt-image
-lifecycle. See [Vercel Sandbox Provider](VERCEL_SANDBOX_PROVIDER.md) and
-[OpenComputer Sandbox Provider](OPENCOMPUTER_PROVIDER.md) for provider-specific details.
+The first session for a repo pays the setup cost. Subsequent sessions restore in seconds from the
+saved backup. Backups are garbage-collected by their own TTL (3 days by default) rather than deleted
+explicitly.
 
 ### Image Prebuilding
 
@@ -552,13 +540,12 @@ was built for internal use where all employees have access to company repositori
 | WebSocket Token    | Authenticate client connections            | Single session                   |
 | Managed LLM Token  | Short-lived OpenAI or xAI model access     | Provider account + secret scope  |
 
-Fresh and prebuilt-image sandboxes fetch git credentials on demand through the control plane instead
-of relying on a token embedded in the environment or remote URL. Snapshot restores may still receive
-env-token fallbacks so legacy snapshots can boot through the credential-helper migration. The helper
-authorizes HTTPS requests for the configured SCM host, preserving existing setup/start hooks that
-clone other private repositories available to the installation. This primarily protects continuously
-running sessions and Daytona persistent resumes from expired embedded credentials; Modal snapshot
-restores still mint a fresh fallback token on restore.
+Sandboxes fetch git credentials on demand through a system-level git credential helper that calls
+back to the control plane, instead of relying on a token embedded in the environment or remote URL.
+The helper authorizes HTTPS requests for the configured SCM host, preserving existing setup/start
+hooks that clone other private repositories available to the installation. This protects
+long-running and restored sessions from expired embedded credentials, since every git operation
+mints a fresh, short-lived token rather than reusing one captured at sandbox creation time.
 
 ### Secrets
 
@@ -583,12 +570,11 @@ rotation is persisted back to the global, repository, or environment scope that 
 [Using OpenAI Models](./OPENAI_MODELS.md) and
 [Using Grok with a SuperGrok Subscription](./GROK_MODELS.md).
 
-> **Daytona and Vercel users**: LLM API keys (e.g., `ANTHROPIC_API_KEY` for Claude models) must be
-> added as global secrets. Modal injects these automatically via its own secrets mechanism.
+> LLM API keys (e.g., `ANTHROPIC_API_KEY` for Claude models) must be added as global secrets.
 >
 > **Opt-in model providers**: DeepSeek models require `DEEPSEEK_API_KEY`, and Z.AI Coding Plan
-> models require `ZHIPU_API_KEY`, as a global secret with any sandbox provider. SuperGrok models
-> require managed xAI OAuth credentials and must be enabled under **Settings > Models**.
+> models require `ZHIPU_API_KEY`, as a global secret. SuperGrok models require managed xAI OAuth
+> credentials and must be enabled under **Settings > Models**.
 
 See [Secrets Management](./SECRETS.md) for setup instructions.
 

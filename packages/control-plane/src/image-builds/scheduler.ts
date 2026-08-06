@@ -123,7 +123,7 @@ export class ImageBuildScheduler {
       cron: IMAGE_BUILD_SCHEDULER_CRON,
       duration_ms: Date.now() - startedAt,
       rebuild_enabled: this.provider !== null && this.sourceControl !== null,
-      orphan_sweep: this.provider === "modal" ? "timeout_bounded" : "not_applicable",
+      orphan_sweep: "not_applicable",
       request_id: correlation.request_id,
       trace_id: correlation.trace_id,
     });
@@ -257,7 +257,7 @@ export async function runImageBuildScheduler(
   db: SqlDatabase,
   correlation: CorrelationContext
 ): Promise<ImageBuildSchedulerStats> {
-  const provider = resolveImageBuildProvider(env.SANDBOX_PROVIDER);
+  const provider = resolveImageBuildProvider();
   const store = new ImageBuildStore(db);
   let sourceControl: SourceControlProvider | null = null;
   if (provider) {

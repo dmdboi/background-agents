@@ -110,8 +110,7 @@ export const IMAGE_BUILD_EXECUTION_TIMEOUT_ENV_KEY = "OI_IMAGE_BUILD_EXECUTION_T
  * `sandbox_runtime/repo_image_callback.py`. Both language sides are pinned by
  * value to the shared manifest
  * `packages/sandbox-runtime/src/sandbox_runtime/image_build_callback_env.json`
- * (TS: `sandbox-env.test.ts`; Python:
- * `packages/modal-infra/tests/test_build_sandbox_lifecycle.py`).
+ * (TS: `sandbox-env.test.ts`; Python: `packages/sandbox-runtime/tests/`).
  */
 export const REPO_IMAGE_CALLBACK_ENV = {
   buildId: "OI_REPO_IMAGE_BUILD_ID",
@@ -327,8 +326,8 @@ export function imageBuildSandboxIdentity(
       openinspect_framework: "open-inspect",
       openinspect_kind: "environment-image-build",
       openinspect_build_id: config.buildId,
-      // Canonical scope labels, mirroring Modal's Python tags in
-      // packages/modal-infra/src/sandbox/build_session.py.
+      // Canonical scope labels, mirrored on the Python side by
+      // sandbox_runtime's build-mode handling in entrypoint.py.
       openinspect_scope_kind: config.scopeKind,
       openinspect_scope_id: config.scopeId,
       // Legacy label kept alongside the scope pair so existing operator
@@ -359,10 +358,9 @@ export interface ImageBuildEnvVarsOptions {
 
 /**
  * Build the env map for an image-build sandbox — the build-mode sibling of
- * {@link buildSandboxEnvVars}, shared by the Vercel and OpenComputer
- * providers (which used to hand-roll byte-identical copies) and mirrored by
- * Modal's Python `ModalBuildSessionService.create` in
- * `packages/modal-infra/src/sandbox/build_session.py`.
+ * {@link buildSandboxEnvVars}, used by the Cloudflare provider's build-sandbox
+ * path and mirrored on the Python side by sandbox_runtime's build-mode
+ * handling in entrypoint.py.
  *
  * Build sandboxes never receive the session-auth system vars: the runtime
  * boots in image-build mode (`IMAGE_BUILD_MODE=true`) and reports back over

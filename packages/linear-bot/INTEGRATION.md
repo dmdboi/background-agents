@@ -78,13 +78,14 @@ Callback context is message-scoped rather than inherited by the control plane. A
 queues a follow-up must attach it again; otherwise the control plane has no safe callback
 destination and intentionally skips completion delivery.
 
-## Terraform Variables
+## Configuration
 
-| Variable                | Description                     |
-| ----------------------- | ------------------------------- |
-| `linear_client_id`      | OAuth Application Client ID     |
-| `linear_client_secret`  | OAuth Application Client Secret |
-| `linear_webhook_secret` | Webhook Signing Secret          |
+| Config                           | Where                                     | Description                     |
+| -------------------------------- | ----------------------------------------- | ------------------------------- |
+| `vars.LINEAR_CLIENT_ID`          | `packages/linear-bot/wrangler.toml`       | OAuth Application Client ID     |
+| `LINEAR_CLIENT_SECRET` (secret)  | `wrangler secret put` (operator-supplied) | OAuth Application Client Secret |
+| `LINEAR_WEBHOOK_SECRET` (secret) | `wrangler secret put` (operator-supplied) | Webhook Signing Secret          |
 
-The old `linear_api_key` variable is optional and retained only for backward compatibility. It is
-not included in the tfvars example and is not used for normal Agent API delivery.
+The old `LINEAR_API_KEY` secret is optional and retained only for backward compatibility, as a
+fallback for posting a completion comment when an old callback lacks Agent API context. It is not
+used for normal Agent API delivery.

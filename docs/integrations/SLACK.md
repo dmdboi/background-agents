@@ -52,7 +52,7 @@ All completion replies are delivered asynchronously through a Cloudflare Queue. 
 attaches generated PNG, JPEG, WebP, or MP4 session artifacts to the completion thread. Delivery is
 bounded to five files, 10 MiB per file, and 25 MiB total per completion. Additional or oversized
 media remains available through **View Session**. Files merely written into the repository are not
-uploaded automatically. Queue delivery requires the Terraform operator's Cloudflare token to have
+uploaded automatically. Queue delivery requires the operator's Cloudflare API token to have
 **Queues: Edit**. Media delivery requires the Slack app's `files:write` bot scope and a one-time app
 reinstall for each workspace.
 

@@ -16,8 +16,6 @@ import { resolveAppName } from "@open-inspect/shared/app-name";
 import { timingSafeEqual } from "@open-inspect/shared/auth";
 import { DEFAULT_MODEL } from "@open-inspect/shared/models";
 import { generateId, hashToken, encryptToken, decryptToken } from "../auth/crypto";
-import { buildModalSandboxDashboardUrl } from "../sandbox/client";
-import { resolveSandboxBackendName } from "../sandbox/provider-name";
 import { createSandboxProviderFromEnv } from "../sandbox/provider-factory";
 import { createImageBuildLookup } from "../image-builds/lookup";
 import { resolveImageBuildProvider } from "../image-builds/provider-policy";
@@ -735,9 +733,7 @@ export class SessionDO extends DurableObject<Env> {
    * Create the lifecycle manager with all required adapters.
    */
   private createLifecycleManager(): SandboxLifecycleManager {
-    const sandboxBackend = resolveSandboxBackendName(this.env.SANDBOX_PROVIDER);
-
-    const provider = createSandboxProviderFromEnv(this.env, sandboxBackend);
+    const provider = createSandboxProviderFromEnv(this.env);
 
     // Storage adapter
     const storage: SandboxStorage = {
@@ -850,10 +846,11 @@ export class SessionDO extends DurableObject<Env> {
       };
     }
 
-    const sandboxDashboardUrlBuilder =
-      sandboxBackend === "modal"
-        ? (providerObjectId: string) => this.getSandboxDashboardUrl(providerObjectId)
-        : undefined;
+    // No provider-hosted sandbox dashboard exists for Cloudflare (Modal had
+    // one); kept as an explicit `undefined` rather than deleting the wiring
+    // below, since sandboxDashboardUrlBuilder/sandboxDashboardUrl remain part
+    // of the lifecycle-manager and session-status contracts.
+    const sandboxDashboardUrlBuilder = undefined;
 
     const config = {
       ...DEFAULT_LIFECYCLE_CONFIG,
@@ -872,9 +869,8 @@ export class SessionDO extends DurableObject<Env> {
     // Create the image lookup if D1 is available and the provider supports
     // prebuilt images.
     let imageBuildLookup: ImageBuildLookup | undefined;
-    const imageBuildProvider = resolveImageBuildProvider(sandboxBackend);
-    if (this.db && imageBuildProvider) {
-      imageBuildLookup = createImageBuildLookup(this.db, imageBuildProvider);
+    if (this.db) {
+      imageBuildLookup = createImageBuildLookup(this.db, resolveImageBuildProvider());
     }
 
     return new SandboxLifecycleManager(
@@ -1802,13 +1798,9 @@ export class SessionDO extends DurableObject<Env> {
       findPrArtifactForRepo(artifacts, { repoOwner, repoName }, isPrimary)?.url ?? null;
   }
 
-  private getSandboxDashboardUrl(providerObjectId: string | null | undefined): string | null {
-    if (resolveSandboxBackendName(this.env.SANDBOX_PROVIDER) !== "modal") return null;
-    return buildModalSandboxDashboardUrl({
-      workspace: this.env.MODAL_WORKSPACE,
-      modalEnvironment: this.env.MODAL_ENVIRONMENT,
-      providerObjectId,
-    });
+  /** No provider-hosted sandbox dashboard exists for Cloudflare (Modal had one). */
+  private getSandboxDashboardUrl(_providerObjectId: string | null | undefined): string | null {
+    return null;
   }
 
   /**

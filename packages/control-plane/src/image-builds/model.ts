@@ -22,7 +22,7 @@ import type {
  * Providers with image-build support: Modal images, Vercel snapshots,
  * OpenComputer checkpoints. Daytona has no image support.
  */
-export type ImageBuildProvider = "modal" | "vercel" | "opencomputer";
+export type ImageBuildProvider = "cloudflare";
 
 /**
  * What an image bakes. `id` is a lowercase `owner/name` pair for repo scopes

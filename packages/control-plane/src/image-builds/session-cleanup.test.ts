@@ -34,7 +34,7 @@ describe("ImageBuildSessionCleanup", () => {
     await cleanup.run(
       {
         id: "build-ready",
-        provider: "modal",
+        provider: "cloudflare",
         provider_image_id: "image-1",
         provider_session_id: "session-1",
         provider_session_cleanup_pending: 1,
@@ -52,7 +52,7 @@ describe("ImageBuildSessionCleanup", () => {
     expect(adapter.cleanupFailedBuild).not.toHaveBeenCalled();
     expect(clearSessionCleanup).toHaveBeenCalledWith({
       buildId: "build-ready",
-      provider: "modal",
+      provider: "cloudflare",
       providerSessionId: "session-1",
     });
   });
@@ -64,7 +64,7 @@ describe("ImageBuildSessionCleanup", () => {
     const cleared = await cleanup.run(
       {
         id: "build-ready",
-        provider: "modal",
+        provider: "cloudflare",
         provider_image_id: "image-1",
         provider_session_id: "session-1",
         provider_session_cleanup_pending: 1,
@@ -90,7 +90,7 @@ describe("ImageBuildSessionCleanup", () => {
       const operation = cleanup.run(
         {
           id: "build-failed",
-          provider: "vercel",
+          provider: "cloudflare",
           provider_image_id: null,
           provider_session_id: "session-2",
           provider_session_cleanup_pending: null,

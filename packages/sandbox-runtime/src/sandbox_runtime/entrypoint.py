@@ -46,9 +46,16 @@ from .constants import (
 from .diff_baseline import resolve_session_diff_baselines
 from .git_excludes import install_runtime_git_excludes
 from .log_config import configure_logging, get_logger
-from .modal_image_build_start import MODAL_IMAGE_BUILD_START_ARGUMENT, run_modal_image_build
 from .repo_config import RepoConfigError, RepoEntry, dump_repo_manifest, parse_repositories
-from .repo_image_callback import RepoImageBuildCallback
+from .repo_image_callback import (
+    BUILD_ID_ENV,
+    CALLBACK_TOKEN_ENV,
+    CALLBACK_URL_ENV,
+    FAILURE_CALLBACK_URL_ENV,
+    PROVIDER_SESSION_ID_ENV,
+    RepoImageBuildCallback,
+    RepoImageCallbackMisconfigured,
+)
 
 configure_logging()
 
@@ -2234,12 +2241,84 @@ def install_signal_handlers(supervisor: SandboxSupervisor) -> None:
         loop.add_signal_handler(sig, supervisor.request_shutdown, sig)
 
 
+CLOUDFLARE_IMAGE_BUILD_START_ARGUMENT = "--cloudflare-image-build-start"
+
+
+async def _run_cloudflare_image_build(supervisor: SandboxSupervisor) -> int:
+    """Run a repo-image build launched via a Cloudflare Sandbox SDK `exec()` call.
+
+    Modal's build launch had to gate on a stdin handshake (see the now-removed
+    `modal_image_build_start.py`) because a Modal sandbox starts running its
+    baked-in entrypoint the instant it's created — before the control plane
+    has bound the sandbox's provider_session_id in D1 — so the callback token
+    couldn't safely ride along in the sandbox's initial env.
+
+    Cloudflare's Sandbox SDK decouples container creation from launching a
+    specific command: the control plane creates the sandbox, binds its
+    provider_session_id in D1, and only *then* calls
+    `exec(command, { env, ... })` to start this build process. By the time
+    this function runs, the callback token is already an ordinary env var
+    (see `RepoImageBuildCallback.from_env`) — no in-process wait is needed,
+    the ordering guarantee is enforced entirely by the TS-side call sequence.
+
+    ASSUMPTION TO VALIDATE: this relies on each `exec()` call getting an
+    *isolated* env — i.e. that the callback token set for this exec() cannot
+    be read by other concurrent or later exec() calls against the same
+    container. This has not been verified against the real Sandbox SDK;
+    confirm it before relying on this in production.
+    """
+    if os.environ.get("IMAGE_BUILD_MODE") != "true":
+        supervisor.log.error("image_build.launch_failed", reason="invalid_build_mode")
+        return 1
+
+    build_id = os.environ.get(BUILD_ID_ENV, "")
+    if not build_id:
+        supervisor.log.error("image_build.launch_failed", reason="missing_build_identity")
+        return 1
+
+    try:
+        callback = RepoImageBuildCallback.from_env(supervisor.log)
+        if callback is None:
+            raise ValueError("missing repo-image callback context")
+    except (ValueError, RepoImageCallbackMisconfigured) as error:
+        supervisor.log.error(
+            "image_build.launch_failed",
+            build_id=build_id,
+            reason=str(error),
+        )
+        return 1
+
+    # Unlike Modal (where the token only ever lived in a local variable, never
+    # in os.environ), the Cloudflare exec()-env channel does put the token in
+    # this process's environment. Scrub it and the rest of the callback
+    # contract once RepoImageBuildCallback has captured what it needs, so
+    # repo setup.sh/start.sh hooks (which inherit os.environ via _hook_env())
+    # never see it.
+    for name in (
+        BUILD_ID_ENV,
+        CALLBACK_URL_ENV,
+        FAILURE_CALLBACK_URL_ENV,
+        CALLBACK_TOKEN_ENV,
+        PROVIDER_SESSION_ID_ENV,
+    ):
+        os.environ.pop(name, None)
+
+    supervisor.log.info(
+        "image_build.launch_accepted",
+        build_id=callback.build_id,
+        provider_session_id=callback.provider_session_id,
+    )
+
+    build_succeeded = await supervisor.run(callback)
+    return 0 if build_succeeded else 1
+
+
 async def main(argv: list[str] | None = None) -> int:
     """Run an interactive supervisor or a gated provider-session image build."""
     parser = argparse.ArgumentParser(description="Open-Inspect sandbox supervisor")
     parser.add_argument(
-        MODAL_IMAGE_BUILD_START_ARGUMENT,
-        dest="await_modal_image_build_token",
+        CLOUDFLARE_IMAGE_BUILD_START_ARGUMENT,
+        dest="cloudflare_image_build_start",
         action="store_true",
     )
     args = parser.parse_args(argv)
@@ -2248,10 +2327,10 @@ async def main(argv: list[str] | None = None) -> int:
     supervisor = SandboxSupervisor(shutdown_event=shutdown_event)
     install_signal_handlers(supervisor)
 
-    if not args.await_modal_image_build_token:
+    if not args.cloudflare_image_build_start:
         await supervisor.run()
         return 0
-    return await run_modal_image_build(supervisor)
+    return await _run_cloudflare_image_build(supervisor)
 
 
 if __name__ == "__main__":

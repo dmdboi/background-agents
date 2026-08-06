@@ -27,15 +27,13 @@ Required:
 - npm
 - Git
 
-Optional (needed for `modal-infra` development):
+Optional (needed for `sandbox-runtime` development):
 
 - Python `3.12+`
 - `uv` (recommended) or `pip`
-- Modal CLI (`modal`)
 
 Optional (needed for full deployment):
 
-- Terraform `1.9+`
 - Wrangler CLI
 
 Quick check:
@@ -59,7 +57,7 @@ What this does:
 - installs JS dependencies
 - builds `@open-inspect/shared`
 - installs git hooks
-- sets up Python env for `packages/modal-infra` when possible
+- sets up Python env for `packages/sandbox-runtime` when possible
 
 ## Path A: Run the Web App Locally (Recommended Quick Start)
 
@@ -83,8 +81,9 @@ CONTROL_PLANE_URL=https://open-inspect-control-plane-<name>.<subdomain>.workers.
 NEXT_PUBLIC_WS_URL=wss://open-inspect-control-plane-<name>.<subdomain>.workers.dev
 
 # Web's per-service signing secret. Must match the control plane's
-# SERVICE_AUTH_SECRET_WEB binding (Terraform generates it; read it from
-# terraform state or the deployed web app's env).
+# SERVICE_AUTH_SECRET_WEB secret (scripts/setup.sh generates it and caches
+# it in the gitignored .secrets file; or read it from the deployed web
+# app's env).
 SERVICE_AUTH_SECRET=your_web_service_secret
 
 # Optional whitelabel branding (defaults shown). NEXT_PUBLIC_* vars are
@@ -177,17 +176,13 @@ npm test -w @open-inspect/slack-bot
 npm test -w @open-inspect/linear-bot
 ```
 
-### Python (`modal-infra`) workflow
+### Python (`sandbox-runtime`) workflow
 
 ```bash
-cd packages/modal-infra
+cd packages/sandbox-runtime
 
-# preferred (sandbox-runtime resolved automatically via uv.lock)
 uv sync --frozen --extra dev
-
-# alternative (install sandbox-runtime sibling package first)
-pip install -e ../sandbox-runtime
-pip install -e ".[dev]"
+# or: pip install -e ".[dev]"
 
 pytest tests/ -v
 ```
@@ -200,12 +195,12 @@ For full infrastructure setup, use:
 
 Critical notes before deploy:
 
-- Build workers before running Terraform apply.
 - Build `@open-inspect/shared` first.
-- Use two-phase Terraform deploy for DO/service bindings.
-- For Modal deployments, eagerly build the Sandbox image with
-  `uv run python deploy.py --build-sandbox-image`, then deploy with `uv run modal deploy deploy.py`
-  (not `src/app.py`).
+- Authenticate `wrangler` (`wrangler login` or `CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID`)
+  before running `./scripts/setup.sh`.
+- Fill in the non-secret placeholders in each package's `wrangler.jsonc`/`wrangler.toml` before
+  deploying — `scripts/setup.sh` provisions resources and pushes secrets, but does not template
+  those values.
 
 ## Common Issues and Fixes
 
@@ -215,8 +210,8 @@ Your GitHub callback URL does not exactly match the running app URL.
 
 ### Access denied after sign-in
 
-Check `allowed_users`, `allowed_email_domains`, `allowed_emails`, and `allowed_github_orgs` in the
-control plane's Terraform configuration. If `allowed_github_orgs` is set, make sure your GitHub App
+Check `ALLOWED_USERS`, `ALLOWED_EMAIL_DOMAINS`, `ALLOWED_EMAILS`, and `ALLOWED_GITHUB_ORGS` in
+`packages/control-plane/wrangler.jsonc`. If `ALLOWED_GITHUB_ORGS` is set, make sure your GitHub App
 has Organization permissions: Members read-only and that the updated permission was republished and
 approved for the installation.
 
@@ -231,8 +226,8 @@ For deployed control plane use `wss://...`, for local control plane use `ws://..
 
 ### Prompts queue but no sandbox work happens
 
-The control plane cannot reach the configured sandbox backend, or that backend is not properly
-configured/deployed.
+The sandbox container failed to start or the `containers`/`durable_objects` bindings in
+`packages/control-plane/wrangler.jsonc` are misconfigured. Check the control-plane Worker's logs.
 
 ## Related Docs
 
