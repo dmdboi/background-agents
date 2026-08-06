@@ -146,11 +146,14 @@ under 72 characters. Use the PR body for details, not the commit message.
 ## CI/CD
 
 Pushing to `main` runs a `deploy` job (`.github/workflows/ci.yml`) gated on lint/typecheck/tests
-passing. It runs `scripts/setup.sh`, which provisions any missing Cloudflare resources (D1, R2, KV,
-queues), pushes secrets from named GitHub Actions secrets (`CLOUDFLARE_API_TOKEN`,
-`OI_GITHUB_APP_ID`, etc.), then builds and `wrangler deploy`s all four Workers — control-plane, web
-(via OpenNext), slack-bot, github-bot. Auto-generated internal secrets are cached across runs in
-`.secrets` via `actions/cache` so re-deploys don't rotate them.
+passing. It runs `scripts/deploy.sh` (`CLOUDFLARE_API_TOKEN`/`CLOUDFLARE_ACCOUNT_ID` from GitHub
+Actions secrets), which applies any new D1 migrations then builds and `wrangler deploy`s all four
+Workers — control-plane, web (via OpenNext), slack-bot, github-bot. It does **not** touch
+R2/KV/queue provisioning or secrets — those change rarely and are handled by `scripts/setup.sh`
+instead, run by hand at onboarding time or whenever a new binding/secret is added (it provisions any
+missing Cloudflare resources, pushes secrets, then delegates the actual deploy to
+`scripts/deploy.sh`). Auto-generated internal secrets are cached locally in `.secrets` (via
+`actions/cache` in CI) so re-running `setup.sh` doesn't rotate them.
 
 CI runs lint, typecheck, and tests for all TypeScript and Python packages on every push and PR.
 

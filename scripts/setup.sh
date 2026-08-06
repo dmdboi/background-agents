@@ -268,30 +268,12 @@ put_secret "$GITHUB_BOT_WORKER" GITHUB_APP_INSTALLATION_ID "${GITHUB_APP_INSTALL
 put_secret "$GITHUB_BOT_WORKER" GITHUB_WEBHOOK_SECRET "${GITHUB_WEBHOOK_SECRET:-}"
 
 # -----------------------------------------------------------------------
-# 6. Deploy Workers (control-plane first, for clarity — bindings are
-#    declarative, so ordering doesn't affect wrangler's own behavior)
+# 6. Deploy Workers — delegated to deploy.sh (the migrations-and-deploy-only
+#    script used for every routine deploy after this first-time setup).
 # -----------------------------------------------------------------------
 step "6/6 Deploy Workers"
 
-echo "Building and deploying control-plane..."
-npm run build -w @open-inspect/control-plane
-(cd packages/control-plane && $WRANGLER deploy)
-
-echo "Building and deploying slack-bot..."
-npm run build -w @open-inspect/slack-bot
-(cd packages/slack-bot && $WRANGLER deploy)
-
-echo "Building and deploying github-bot..."
-npm run build -w @open-inspect/github-bot
-(cd packages/github-bot && $WRANGLER deploy)
-
-echo "Building and deploying web..."
-echo "  (NEXT_PUBLIC_* vars are inlined at build time — see comment in"
-echo "  packages/web/wrangler.toml. Export them before this script if you"
-echo "  need non-default values; falling back to wrangler.toml's [vars] here.)"
-npm run build -w @open-inspect/shared
-npm run build:cloudflare -w @open-inspect/web
-(cd packages/web && npx opennextjs-cloudflare deploy)
+bash "$REPO_ROOT/scripts/deploy.sh"
 
 echo ""
 echo "=============================================================="

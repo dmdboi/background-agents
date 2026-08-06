@@ -297,33 +297,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Restore generated secrets cache
-        # scripts/setup.sh generates a fixed set of internal secrets once
-        # (BROWSER_AUTH_SECRET, SERVICE_AUTH_SECRET_*, etc.) and caches them in
-        # a local .secrets file so re-running it doesn't rotate them. Terraform
-        # used to keep the equivalent (`random_password` resources) in its own
-        # state file across runs; this cache is the wrangler-only replacement.
-        # Losing this cache invalidates every existing session/cookie signed
-        # with the old values on the next deploy — worth a real secrets-store
-        # solution (e.g. a private GH Actions cache scope, or 1Password/Vault)
-        # rather than the actions/cache best-effort default for anything past
-        # early bring-up.
-        uses: actions/cache@v4
-        with:
-          path: .secrets
-          key: open-inspect-generated-secrets
-
       - name: Deploy all workers
+        # Routine deploy only: apply new D1 migrations, then build and
+        # `wrangler deploy` every Worker. Does NOT touch R2/KV/queue
+        # provisioning or secrets — those change rarely and are handled by
+        # scripts/setup.sh, run by hand at onboarding time or whenever a new
+        # binding/secret is added.
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          GITHUB_APP_ID: ${{ secrets.OI_GITHUB_APP_ID }}
-          GITHUB_APP_PRIVATE_KEY: ${{ secrets.OI_GITHUB_APP_PRIVATE_KEY }}
-          GITHUB_APP_INSTALLATION_ID: ${{ secrets.OI_GITHUB_APP_INSTALLATION_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.OI_GITHUB_CLIENT_SECRET }}
-          GITHUB_WEBHOOK_SECRET: ${{ secrets.OI_GITHUB_WEBHOOK_SECRET }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.OI_GOOGLE_CLIENT_SECRET }}
-          SLACK_BOT_TOKEN: ${{ secrets.OI_SLACK_BOT_TOKEN }}
-          SLACK_SIGNING_SECRET: ${{ secrets.OI_SLACK_SIGNING_SECRET }}
-          ANTHROPIC_API_KEY: ${{ secrets.OI_ANTHROPIC_API_KEY }}
-        run: ./scripts/setup.sh
+        run: ./scripts/deploy.sh
