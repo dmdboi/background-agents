@@ -58,8 +58,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      // Replace with the id from `wrangler d1 create open-inspect` (setup.sh does this).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "bb9040ad-a63c-4297-8ccc-e1a11acc933d",
       "database_name": "open-inspect",
     },
   ],
@@ -70,8 +69,7 @@
   "kv_namespaces": [
     {
       "binding": "REPOS_CACHE",
-      // Replace with the id from `wrangler kv namespace create REPOS_CACHE`.
-      "id": "00000000000000000000000000000000",
+      "id": "8ba3d9ef0a0a4d68bd0a60983ad22b6a",
     },
   ],
 
@@ -131,13 +129,13 @@
   // deploying (setup.sh does not template these; edit by hand or fork).
   // -------------------------------------------------------------------------
   "vars": {
-    "WEB_APP_URL": "https://your-web-app.example.com",
-    "ALLOWED_USERS": "",
+    "WEB_APP_URL": "https://inspect.maxdiamond.co.uk",
+    "ALLOWED_USERS": "dmdboi",
     "ALLOWED_EMAIL_DOMAINS": "",
     "ALLOWED_EMAILS": "",
     "ALLOWED_GITHUB_ORGS": "",
     "UNSAFE_ALLOW_ALL_USERS": "false",
-    "WORKER_URL": "https://open-inspect-control-plane.YOUR-SUBDOMAIN.workers.dev",
+    "WORKER_URL": "https://open-inspect-control-plane.padfootdiamond.workers.dev",
     "DEPLOYMENT_NAME": "production",
     "APP_NAME": "Open-Inspect",
     "SANDBOX_INACTIVITY_TIMEOUT_MS": "1800000",
@@ -147,7 +145,7 @@
     // a warning) or point it at a domain you control.
     "SANDBOX_PREVIEW_DOMAIN": "",
     // Leave blank to disable the corresponding OAuth provider.
-    "GITHUB_CLIENT_ID": "",
+    "GITHUB_CLIENT_ID": "Iv23lio7Av9V45vhvuHp",
     "GOOGLE_CLIENT_ID": "",
   },
 

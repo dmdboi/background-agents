@@ -11,7 +11,7 @@ compatibility_flags = ["nodejs_compat"]
 # KV namespace for webhook dedup, installation cache, and config.
 [[kv_namespaces]]
 binding = "GITHUB_KV"
-id = ""  # Fill in after: wrangler kv namespace create GITHUB_KV
+id = "2abf117a9b9d44dda055b055074d675f"
 
 # Service binding to the control plane worker (worker-to-worker calls).
 [[services]]
@@ -22,7 +22,7 @@ service = "open-inspect-control-plane"
 DEPLOYMENT_NAME = "production"
 APP_NAME = "Open-Inspect"
 DEFAULT_MODEL = "anthropic/claude-haiku-4-5"
-GITHUB_BOT_USERNAME = ""  # e.g. "your-app[bot]"
+GITHUB_BOT_USERNAME = "immortusdev[bot]"
 
 [observability]
 enabled = true

@@ -11,7 +11,7 @@ compatibility_flags = ["nodejs_compat"]
 # KV namespace for Slack install state, thread/session mapping, and config.
 [[kv_namespaces]]
 binding = "SLACK_KV"
-id = ""  # Fill in after: wrangler kv namespace create SLACK_KV
+id = "d93889853fc3444a834ca6a6e2347a45"
 
 # Service binding to the control plane worker (worker-to-worker calls).
 [[services]]
@@ -35,8 +35,8 @@ max_retries = 1
 retry_delay = 15
 
 [vars]
-CONTROL_PLANE_URL = "https://open-inspect-control-plane.YOUR-SUBDOMAIN.workers.dev"
-WEB_APP_URL = "https://your-web-app.example.com"
+CONTROL_PLANE_URL = "https://open-inspect-control-plane.padfootdiamond.workers.dev"
+WEB_APP_URL = "https://inspect.maxdiamond.co.uk"
 DEPLOYMENT_NAME = "production"
 APP_NAME = "Open-Inspect"
 DEFAULT_MODEL = "claude-haiku-4-5"

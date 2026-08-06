@@ -67,8 +67,7 @@ bash "$REPO_ROOT/scripts/d1-migrate.sh" "$D1_DATABASE_NAME" "$MIGRATIONS_DIR"
 # -----------------------------------------------------------------------
 step "2/6 R2 bucket"
 
-if $WRANGLER r2 bucket list --json 2>/dev/null | jq -e --arg name "$R2_BUCKET_NAME" \
-  '.[] | select(.name == $name)' >/dev/null 2>&1; then
+if $WRANGLER r2 bucket list 2>/dev/null | grep -qx "name:.*${R2_BUCKET_NAME}"; then
   echo "R2 bucket '$R2_BUCKET_NAME' already exists, skipping create."
 else
   echo "Creating R2 bucket '$R2_BUCKET_NAME'..."
@@ -89,7 +88,7 @@ create_kv_if_missing() {
   local title="${worker_prefix}-${binding_name}"
 
   local existing_id
-  existing_id="$($WRANGLER kv namespace list --json | jq -r --arg title "$title" \
+  existing_id="$($WRANGLER kv namespace list | jq -r --arg title "$title" \
     '.[] | select(.title == $title) | .id' | head -n1)"
 
   if [ -n "$existing_id" ]; then
@@ -113,8 +112,8 @@ step "4/6 Queues"
 create_queue_if_missing() {
   local queue_name="$1"
 
-  if $WRANGLER queues list --json 2>/dev/null | jq -e --arg name "$queue_name" \
-    '.[] | select(.queue_name == $name or .name == $name)' >/dev/null 2>&1; then
+  if $WRANGLER queues list 2>/dev/null | awk -F'│' 'NF>1{gsub(/^[ \t]+|[ \t]+$/,"",$3); print $3}' \
+    | grep -qx "$queue_name"; then
     echo "Queue '$queue_name' already exists, skipping create."
   else
     echo "Creating queue '$queue_name'..."
@@ -186,7 +185,16 @@ prompt_secret() {
   if [ -n "$current" ]; then
     return
   fi
-  read -r -s -p "$prompt_text: " value
+  # Non-interactive stdin (CI, or run with </dev/null) — there's no one to
+  # prompt. `read` would either hang or, on closed/EOF stdin, return a
+  # non-zero exit that `set -e` treats as fatal and kills the whole script.
+  # Leave the value unset (put_secret skips it with a warning) instead.
+  if [ ! -t 0 ]; then
+    echo "  (stdin not interactive — leaving $var_name unset; set it as an env var to provide a value)"
+    return
+  fi
+  local value=""
+  read -r -s -p "$prompt_text: " value || true
   echo ""
   export "$var_name=$value"
 }
