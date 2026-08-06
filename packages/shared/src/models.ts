@@ -22,6 +22,13 @@ export interface ModelReasoningConfig {
 interface ModelCatalogGroup {
   category: string;
   enabledByDefault: boolean;
+  /**
+   * Env var name for this group's provider API key, for groups that
+   * authenticate via a plain secret rather than OAuth (e.g. `DEEPSEEK_API_KEY`).
+   * Omitted for OAuth-managed groups (Anthropic, OpenAI, xAI) — those have
+   * their own dedicated setup flows, not a generic key field.
+   */
+  apiKeyEnvVar?: string;
   models: readonly ModelCatalogEntry[];
 }
 
@@ -221,11 +228,13 @@ export const MODEL_CATALOG = [
   {
     category: "Z.AI Coding Plan",
     enabledByDefault: false,
+    apiKeyEnvVar: "ZHIPU_API_KEY",
     models: [{ id: "zai-coding-plan/glm-5.2", name: "GLM 5.2", description: "Z.AI Coding Plan" }],
   },
   {
     category: "DeepSeek",
     enabledByDefault: false,
+    apiKeyEnvVar: "DEEPSEEK_API_KEY",
     models: [
       { id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash", description: "Fast model" },
       { id: "deepseek/deepseek-v4-pro", name: "DeepSeek V4 Pro", description: "Most capable" },
@@ -275,6 +284,8 @@ export interface ModelDisplayInfo {
 
 export interface ModelCategory {
   category: string;
+  /** Env var name for this category's provider API key, when applicable — see {@link ModelCatalogGroup.apiKeyEnvVar}. */
+  apiKeyEnvVar?: string;
   models: ModelDisplayInfo[];
 }
 
@@ -284,6 +295,7 @@ export interface ModelCategory {
 export const MODEL_OPTIONS: ModelCategory[] = [
   ...MODEL_CATALOG.map((group) => ({
     category: group.category,
+    ...("apiKeyEnvVar" in group ? { apiKeyEnvVar: group.apiKeyEnvVar } : {}),
     models: group.models.map(({ id, name, description }) => ({ id, name, description })),
   })),
 ];

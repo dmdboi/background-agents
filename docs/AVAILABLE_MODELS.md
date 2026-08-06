@@ -58,7 +58,8 @@ Grok models require a SuperGrok OAuth refresh token and are disabled by default.
 
 ## Z.AI Coding Plan
 
-Z.AI Coding Plan models require `ZHIPU_API_KEY` as a global or repository secret.
+Z.AI Coding Plan models require `ZHIPU_API_KEY` as a global or repository secret. Set it inline from
+**Settings > Models** ("Set key" next to the category), or via Settings > Secrets.
 
 | Model ID                  | Display name | Description      | Reasoning efforts | Default effort |
 | ------------------------- | ------------ | ---------------- | ----------------- | -------------- |
@@ -66,7 +67,8 @@ Z.AI Coding Plan models require `ZHIPU_API_KEY` as a global or repository secret
 
 ## DeepSeek
 
-DeepSeek models require `DEEPSEEK_API_KEY` as a global or repository secret.
+DeepSeek models require `DEEPSEEK_API_KEY` as a global or repository secret. Set it inline from
+**Settings > Models** ("Set key" next to the category), or via Settings > Secrets.
 
 | Model ID                     | Display name      | Description  | Reasoning efforts | Default effort |
 | ---------------------------- | ----------------- | ------------ | ----------------- | -------------- |

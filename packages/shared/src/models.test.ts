@@ -62,6 +62,7 @@ describe("model utilities", () => {
     expect(MODEL_OPTIONS).toEqual(
       MODEL_CATALOG.map((group) => ({
         category: group.category,
+        ...("apiKeyEnvVar" in group ? { apiKeyEnvVar: group.apiKeyEnvVar } : {}),
         models: group.models.map(({ id, name, description }) => ({ id, name, description })),
       }))
     );

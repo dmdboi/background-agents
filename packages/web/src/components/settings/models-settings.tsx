@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { mutate } from "swr";
+import useSWR, { mutate } from "swr";
 import { toast } from "sonner";
 import { DEFAULT_ENABLED_MODELS, type ModelCategory } from "@open-inspect/shared/models";
 import {
@@ -10,8 +10,92 @@ import {
   useModelCatalog,
 } from "@/hooks/use-enabled-models";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { browserApiFetch } from "@/lib/browser-api-fetch";
+
+const SECRETS_KEY = "/api/secrets";
+
+/**
+ * Inline "set the provider's API key" field for a model category whose
+ * models authenticate via a plain secret (see ModelCategory.apiKeyEnvVar).
+ * Reads/writes the same global secrets store as Settings > Secrets, scoped
+ * to this one env var name.
+ */
+function ProviderApiKeyField({ envVar }: { envVar: string }) {
+  const { data, isLoading } = useSWR<{ secrets: { key: string }[] }>(SECRETS_KEY);
+  const isSet = data?.secrets?.some((s) => s.key === envVar) ?? false;
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!value.trim()) return;
+    setSaving(true);
+    try {
+      const res = await browserApiFetch(SECRETS_KEY, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secrets: { [envVar]: value } }),
+      });
+      if (res.ok) {
+        toast.success(`${envVar} saved`);
+        mutate(SECRETS_KEY);
+        setEditing(false);
+        setValue("");
+      } else {
+        const data = await res.json();
+        toast.error(data.error || `Failed to save ${envVar}`);
+      }
+    } catch {
+      toast.error(`Failed to save ${envVar}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (isLoading) return null;
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2 mb-3 text-xs">
+        <span className="text-muted-foreground">
+          Requires <code className="font-mono">{envVar}</code>
+          {isSet ? " — set globally" : " — not set"}
+        </span>
+        <Button type="button" variant="subtle" size="xs" onClick={() => setEditing(true)}>
+          {isSet ? "Change key" : "Set key"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 mb-3">
+      <Input
+        type="password"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder={envVar}
+        className="flex-1 min-w-[200px] h-auto px-2 py-1 text-xs"
+      />
+      <Button type="button" variant="outline" size="xs" onClick={handleSave} disabled={saving}>
+        {saving ? "Saving..." : "Save"}
+      </Button>
+      <Button
+        type="button"
+        variant="subtle"
+        size="xs"
+        onClick={() => {
+          setEditing(false);
+          setValue("");
+        }}
+      >
+        Cancel
+      </Button>
+    </div>
+  );
+}
 
 export function ModelsSettings() {
   const { enabledModels: storedEnabledModels, loading } = useEnabledModels();
@@ -120,6 +204,7 @@ export function ModelsSettings() {
                   {allEnabled ? "Disable all" : "Enable all"}
                 </Button>
               </div>
+              {group.apiKeyEnvVar && <ProviderApiKeyField envVar={group.apiKeyEnvVar} />}
               <div className="space-y-2">
                 {group.models.map((model) => {
                   const isEnabled = enabledModels.has(model.id);
