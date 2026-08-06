@@ -31,6 +31,7 @@ import { integrationSettingsRoutes } from "./routes/integration-settings";
 import { commitSigningRoutes } from "./routes/commit-signing";
 import { scmSettingsRoutes } from "./routes/scm-settings";
 import { modelPreferencesRoutes } from "./routes/model-preferences";
+import { modelsRoutes } from "./routes/models";
 import { reposRoutes } from "./routes/repos";
 import { secretsRoutes } from "./routes/secrets";
 import { environmentRoutes } from "./routes/environments";
@@ -352,6 +353,7 @@ const routes: Route[] = [
 
   // Model preferences
   ...modelPreferencesRoutes,
+  ...modelsRoutes,
 
   // Integration settings
   ...integrationSettingsRoutes,

@@ -3,14 +3,19 @@
 import { useState } from "react";
 import { mutate } from "swr";
 import { toast } from "sonner";
-import { MODEL_OPTIONS, DEFAULT_ENABLED_MODELS } from "@open-inspect/shared/models";
-import { MODEL_PREFERENCES_KEY, useEnabledModels } from "@/hooks/use-enabled-models";
+import { DEFAULT_ENABLED_MODELS, type ModelCategory } from "@open-inspect/shared/models";
+import {
+  MODEL_PREFERENCES_KEY,
+  useEnabledModels,
+  useModelCatalog,
+} from "@/hooks/use-enabled-models";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { browserApiFetch } from "@/lib/browser-api-fetch";
 
 export function ModelsSettings() {
   const { enabledModels: storedEnabledModels, loading } = useEnabledModels();
+  const categories = useModelCatalog();
   const [enabledModels, setEnabledModels] = useState<Set<string>>(
     () => new Set(DEFAULT_ENABLED_MODELS)
   );
@@ -38,7 +43,7 @@ export function ModelsSettings() {
     setDirty(true);
   };
 
-  const toggleCategory = (category: (typeof MODEL_OPTIONS)[number], enable: boolean) => {
+  const toggleCategory = (category: ModelCategory, enable: boolean) => {
     setEnabledModels((prev) => {
       const next = new Set(prev);
       for (const model of category.models) {
@@ -96,7 +101,7 @@ export function ModelsSettings() {
       </p>
 
       <div className="space-y-6">
-        {MODEL_OPTIONS.map((group) => {
+        {categories.map((group) => {
           const allEnabled = group.models.every((m) => enabledModels.has(m.id));
 
           return (

@@ -1,8 +1,3 @@
-import {
-  refreshOpenAIToken,
-  extractOpenAIAccountId,
-  OpenAITokenRefreshError,
-} from "../auth/openai";
 import { GlobalSecretsStore } from "../db/global-secrets";
 import { RepoSecretsStore } from "../db/repo-secrets";
 import { EnvironmentSecretsStore } from "../db/environment-secrets";
@@ -10,52 +5,82 @@ import type { SqlDatabase } from "../db/sql-database";
 import type { Logger } from "../logger";
 import type { SessionRow } from "./types";
 
-const OPENAI_TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+const OAUTH_TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+const OAUTH_CONCURRENT_ROTATION_DELAY_MS = 500;
 
 /**
- * Where a session's OpenAI OAuth tokens are read from and rotated back to. A
+ * Where a session's OAuth tokens are read from and rotated back to. A
  * session reads from its own secret scope first — the environment for
  * environment-launched sessions, the repo for repo-launched ones (§6.4/§7.4) —
  * then falls back to global. Each variant carries everything needed to write
  * the rotated tokens back to the same place, so refresh never has to re-derive
- * the identity (and the old repoId-null guard disappears).
+ * the identity.
  */
-type TokenSecretSource =
+export type TokenSecretSource =
   | { kind: "environment"; environmentId: string }
   | { kind: "repo"; repoId: number; repoOwner: string; repoName: string }
   | { kind: "global" };
 
-type OpenAITokenState =
-  | { type: "cached"; accessToken: string; expiresIn: number; accountId?: string }
+type TokenState<TExtra extends Record<string, unknown>> =
+  | { type: "cached"; accessToken: string; expiresIn: number; extra: TExtra }
   | { type: "refresh"; refreshToken: string; source: TokenSecretSource };
 
-export type OpenAITokenRefreshResult =
-  | { ok: true; accessToken: string; expiresIn?: number; accountId?: string }
+export type OAuthTokenRefreshResult<TExtra extends Record<string, unknown>> =
+  | ({ ok: true; accessToken: string; expiresIn?: number } & TExtra)
   | { ok: false; status: number; error: string };
 
-export class OpenAITokenRefreshService {
+/**
+ * Per-provider glue for {@link OAuthTokenRefreshService}. Everything about
+ * *how* a session's OAuth token gets read, cached, and rotated back is
+ * identical between providers — only the token endpoint, secret key names,
+ * and the odd extra claim (e.g. OpenAI's account id) differ.
+ */
+export interface OAuthProviderAdapter<
+  TTokens,
+  TExtra extends Record<string, unknown> = Record<string, never>,
+> {
+  /** Used in log lines, e.g. "OpenAI" / "xAI". */
+  providerLabel: string;
+  secretKeys: { refreshToken: string; accessToken: string; expiresAt: string };
+  defaultTokenLifetimeMs: number;
+  refresh: (refreshToken: string) => Promise<TTokens>;
+  isUnauthorizedError: (error: unknown) => boolean;
+  getAccessToken: (tokens: TTokens) => string;
+  getRefreshToken: (tokens: TTokens, previousRefreshToken: string) => string;
+  getExpiresInSeconds: (tokens: TTokens) => number | undefined;
+  extractExtra: (tokens: TTokens) => TExtra;
+  extraFromSecrets: (secrets: Record<string, string>) => TExtra;
+  extraToSecrets: (extra: TExtra) => Record<string, string>;
+}
+
+export class OAuthTokenRefreshService<TTokens, TExtra extends Record<string, unknown>> {
   constructor(
+    private readonly adapter: OAuthProviderAdapter<TTokens, TExtra>,
     private readonly db: SqlDatabase,
     private readonly encryptionKey: string,
     private readonly ensureRepoId: (session: SessionRow) => Promise<number>,
     private readonly log: Logger
   ) {}
 
-  async refresh(session: SessionRow): Promise<OpenAITokenRefreshResult> {
+  async refresh(session: SessionRow): Promise<OAuthTokenRefreshResult<TExtra>> {
     const readTokenState = () => this.readTokenState(session);
 
-    let tokenState: OpenAITokenState | null;
+    let tokenState: TokenState<TExtra> | null;
     try {
       tokenState = await readTokenState();
     } catch (e) {
-      this.log.error("Failed to read OpenAI token state from secrets", {
+      this.log.error(`Failed to read ${this.adapter.providerLabel} token state from secrets`, {
         error: e instanceof Error ? e.message : String(e),
       });
       return { ok: false, status: 500, error: "Failed to read token state" };
     }
 
     if (!tokenState) {
-      return { ok: false, status: 404, error: "OPENAI_OAUTH_REFRESH_TOKEN not configured" };
+      return {
+        ok: false,
+        status: 404,
+        error: `${this.adapter.secretKeys.refreshToken} not configured`,
+      };
     }
 
     if (tokenState.type === "cached") {
@@ -63,50 +88,57 @@ export class OpenAITokenRefreshService {
         ok: true,
         accessToken: tokenState.accessToken,
         expiresIn: tokenState.expiresIn,
-        accountId: tokenState.accountId,
+        ...tokenState.extra,
       };
     }
 
     try {
       return await this.attemptRefresh(tokenState);
     } catch (e) {
-      if (e instanceof OpenAITokenRefreshError && e.status === 401) {
+      if (this.adapter.isUnauthorizedError(e)) {
         return this.handleUnauthorizedRefresh(tokenState, readTokenState);
       }
 
-      this.log.error("OpenAI token refresh failed", {
+      this.log.error(`${this.adapter.providerLabel} token refresh failed`, {
         error: e instanceof Error ? e.message : String(e),
       });
-      return { ok: false, status: 502, error: "OpenAI token refresh failed" };
+      return {
+        ok: false,
+        status: 502,
+        error: `${this.adapter.providerLabel} token refresh failed`,
+      };
     }
   }
 
   private getTokenStateFromSecrets(
     secrets: Record<string, string>,
     source: TokenSecretSource
-  ): OpenAITokenState | null {
-    if (!secrets.OPENAI_OAUTH_REFRESH_TOKEN) {
+  ): TokenState<TExtra> | null {
+    const {
+      refreshToken: refreshTokenKey,
+      accessToken: accessTokenKey,
+      expiresAt: expiresAtKey,
+    } = this.adapter.secretKeys;
+
+    const refreshToken = secrets[refreshTokenKey];
+    if (!refreshToken) {
       return null;
     }
 
-    const cachedToken = secrets.OPENAI_OAUTH_ACCESS_TOKEN;
-    const expiresAt = parseInt(secrets.OPENAI_OAUTH_ACCESS_TOKEN_EXPIRES_AT || "0", 10);
+    const cachedToken = secrets[accessTokenKey];
+    const expiresAt = parseInt(secrets[expiresAtKey] || "0", 10);
     const now = Date.now();
 
-    if (cachedToken && expiresAt - now > OPENAI_TOKEN_REFRESH_BUFFER_MS) {
+    if (cachedToken && expiresAt - now > OAUTH_TOKEN_REFRESH_BUFFER_MS) {
       return {
         type: "cached",
         accessToken: cachedToken,
         expiresIn: Math.floor((expiresAt - now) / 1000),
-        accountId: secrets.OPENAI_OAUTH_ACCOUNT_ID,
+        extra: this.adapter.extraFromSecrets(secrets),
       };
     }
 
-    return {
-      type: "refresh",
-      refreshToken: secrets.OPENAI_OAUTH_REFRESH_TOKEN,
-      source,
-    };
+    return { type: "refresh", refreshToken, source };
   }
 
   /**
@@ -168,7 +200,7 @@ export class OpenAITokenRefreshService {
     }
   }
 
-  private async readTokenState(session: SessionRow): Promise<OpenAITokenState | null> {
+  private async readTokenState(session: SessionRow): Promise<TokenState<TExtra> | null> {
     const source = await this.resolveSessionSecretSource(session);
     if (source) {
       const secrets = await this.readSecretsForSource(source);
@@ -183,52 +215,60 @@ export class OpenAITokenRefreshService {
   }
 
   private async attemptRefresh(
-    tokenState: Extract<OpenAITokenState, { type: "refresh" }>
-  ): Promise<OpenAITokenRefreshResult> {
-    const tokens = await refreshOpenAIToken(tokenState.refreshToken);
-    const accountId = extractOpenAIAccountId(tokens);
-    const expiresAt = Date.now() + (tokens.expires_in ?? 3600) * 1000;
+    tokenState: Extract<TokenState<TExtra>, { type: "refresh" }>
+  ): Promise<OAuthTokenRefreshResult<TExtra>> {
+    const tokens = await this.adapter.refresh(tokenState.refreshToken);
+    const extra = this.adapter.extractExtra(tokens);
+    const expiresIn =
+      this.adapter.getExpiresInSeconds(tokens) ?? this.adapter.defaultTokenLifetimeMs / 1000;
+    const expiresAt = Date.now() + expiresIn * 1000;
 
     try {
       const secretsToWrite: Record<string, string> = {
-        OPENAI_OAUTH_REFRESH_TOKEN: tokens.refresh_token,
-        OPENAI_OAUTH_ACCESS_TOKEN: tokens.access_token,
-        OPENAI_OAUTH_ACCESS_TOKEN_EXPIRES_AT: String(expiresAt),
+        [this.adapter.secretKeys.refreshToken]: this.adapter.getRefreshToken(
+          tokens,
+          tokenState.refreshToken
+        ),
+        [this.adapter.secretKeys.accessToken]: this.adapter.getAccessToken(tokens),
+        [this.adapter.secretKeys.expiresAt]: String(expiresAt),
+        ...this.adapter.extraToSecrets(extra),
       };
-
-      if (accountId) {
-        secretsToWrite.OPENAI_OAUTH_ACCOUNT_ID = accountId;
-      }
 
       await this.writeSecretsForSource(tokenState.source, secretsToWrite);
 
-      this.log.info("OpenAI tokens rotated and cached", {
+      this.log.info(`${this.adapter.providerLabel} tokens rotated and cached`, {
         source: tokenState.source.kind,
-        has_account_id: !!accountId,
       });
     } catch (e) {
-      this.log.error("Failed to store rotated OpenAI tokens", {
-        error: e instanceof Error ? e.message : String(e),
-      });
+      this.log.error(
+        `${this.adapter.providerLabel} token refreshed but failed to persist rotated tokens`,
+        {
+          source: tokenState.source.kind,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      );
     }
 
     return {
       ok: true,
-      accessToken: tokens.access_token,
-      expiresIn: tokens.expires_in,
-      accountId,
+      accessToken: this.adapter.getAccessToken(tokens),
+      expiresIn,
+      ...extra,
     };
   }
 
   private async handleUnauthorizedRefresh(
-    tokenState: Extract<OpenAITokenState, { type: "refresh" }>,
-    readTokenState: () => Promise<OpenAITokenState | null>
-  ): Promise<OpenAITokenRefreshResult> {
-    this.log.warn("OpenAI refresh got 401, checking for concurrent rotation", {
-      source: tokenState.source.kind,
-    });
+    tokenState: Extract<TokenState<TExtra>, { type: "refresh" }>,
+    readTokenState: () => Promise<TokenState<TExtra> | null>
+  ): Promise<OAuthTokenRefreshResult<TExtra>> {
+    this.log.warn(
+      `${this.adapter.providerLabel} refresh was rejected, checking for concurrent rotation`,
+      {
+        source: tokenState.source.kind,
+      }
+    );
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, OAUTH_CONCURRENT_ROTATION_DELAY_MS));
 
     try {
       const reread = await readTokenState();
@@ -239,7 +279,7 @@ export class OpenAITokenRefreshService {
           ok: true,
           accessToken: reread.accessToken,
           expiresIn: reread.expiresIn,
-          accountId: reread.accountId,
+          ...reread.extra,
         };
       }
 
@@ -248,11 +288,15 @@ export class OpenAITokenRefreshService {
         return this.attemptRefresh(reread);
       }
     } catch (retryErr) {
-      this.log.error("Retry after 401 also failed", {
+      this.log.error(`Retry after ${this.adapter.providerLabel} 401 also failed`, {
         error: retryErr instanceof Error ? retryErr.message : String(retryErr),
       });
     }
 
-    return { ok: false, status: 401, error: "OpenAI token refresh failed: unauthorized" };
+    return {
+      ok: false,
+      status: 401,
+      error: `${this.adapter.providerLabel} token refresh failed: unauthorized`,
+    };
   }
 }

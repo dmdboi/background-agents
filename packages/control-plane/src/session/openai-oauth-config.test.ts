@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Logger } from "../logger";
 import type { Env } from "../types";
 import type { SessionRow } from "./types";
-import { OpenAITokenRefreshService } from "./openai-token-refresh-service";
+import { OAuthTokenRefreshService } from "./oauth-token-refresh-service";
+import { openAiOAuthAdapter } from "./openai-oauth-config";
 import { OpenAITokenRefreshError } from "../auth/openai";
 
 const mockState = vi.hoisted(() => ({
@@ -147,7 +148,8 @@ describe("OpenAITokenRefreshService", () => {
       OPENAI_OAUTH_ACCOUNT_ID: "acct_cached",
     });
 
-    const service = new OpenAITokenRefreshService(
+    const service = new OAuthTokenRefreshService(
+      openAiOAuthAdapter,
       {} as Env["DB"],
       "enc-key",
       async () => repoId,
@@ -166,7 +168,8 @@ describe("OpenAITokenRefreshService", () => {
   });
 
   it("returns 404 when refresh token is missing in repo and global secrets", async () => {
-    const service = new OpenAITokenRefreshService(
+    const service = new OAuthTokenRefreshService(
+      openAiOAuthAdapter,
       {} as Env["DB"],
       "enc-key",
       async () => 123,
@@ -195,7 +198,8 @@ describe("OpenAITokenRefreshService", () => {
       account_id: "acct_new",
     });
 
-    const service = new OpenAITokenRefreshService(
+    const service = new OAuthTokenRefreshService(
+      openAiOAuthAdapter,
       {} as Env["DB"],
       "enc-key",
       async () => repoId,
@@ -238,7 +242,8 @@ describe("OpenAITokenRefreshService", () => {
       throw new OpenAITokenRefreshError("unauthorized", 401, "unauthorized");
     });
 
-    const service = new OpenAITokenRefreshService(
+    const service = new OAuthTokenRefreshService(
+      openAiOAuthAdapter,
       {} as Env["DB"],
       "enc-key",
       async () => repoId,
@@ -276,7 +281,8 @@ describe("OpenAITokenRefreshService", () => {
       account_id: "acct_env",
     });
 
-    const service = new OpenAITokenRefreshService(
+    const service = new OAuthTokenRefreshService(
+      openAiOAuthAdapter,
       {} as Env["DB"],
       "enc-key",
       async () => 123,
@@ -310,7 +316,8 @@ describe("OpenAITokenRefreshService", () => {
       OPENAI_OAUTH_ACCESS_TOKEN_EXPIRES_AT: String(Date.now() + globalCachedTokenTtlMs),
     };
 
-    const service = new OpenAITokenRefreshService(
+    const service = new OAuthTokenRefreshService(
+      openAiOAuthAdapter,
       {} as Env["DB"],
       "enc-key",
       async () => 123,

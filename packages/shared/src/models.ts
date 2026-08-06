@@ -38,6 +38,19 @@ interface ModelCatalogEntry {
 
 /**
  * Authoritative model metadata, grouped in UI display order.
+ *
+ * This list is the curated set of models we actually support — which models
+ * are offered is a human judgment call (sandbox/tool-call compatibility),
+ * not something to source from an external feed. Control-plane may overlay
+ * live `name`/`description`/`reasoning` from models.dev on top of these
+ * entries for display, but this array stays the validation-critical source
+ * of truth for ids, categories, and defaults.
+ *
+ * To add a plain API-key provider (no OAuth — the Anthropic-style path),
+ * just add a new group here with its `provider/model` ids. The secret
+ * (`<PROVIDER>_API_KEY`) is picked up generically: it's read from whichever
+ * secrets store applies (repo/environment/global) and passed through to the
+ * sandbox untouched — no other code changes are needed.
  */
 export const MODEL_CATALOG = [
   {

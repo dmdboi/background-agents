@@ -9,6 +9,8 @@ import { createLogger } from "./logger";
 import type { Env } from "./types";
 import { consumeImageBuildFinalizations } from "./image-builds/finalization-consumer";
 import { IMAGE_BUILD_SCHEDULER_CRON, runImageBuildScheduler } from "./image-builds/scheduler";
+import { MODELS_DEV_SYNC_CRON } from "./models-dev/sync";
+import { runModelsDevSync } from "./routes/models";
 
 const logger = createLogger("worker");
 
@@ -48,6 +50,10 @@ export default {
         request_id: requestId,
         trace_id: requestId,
       });
+      return;
+    }
+    if (event.cron === MODELS_DEV_SYNC_CRON) {
+      await runModelsDevSync(env);
       return;
     }
     if (event.cron !== "* * * * *") {

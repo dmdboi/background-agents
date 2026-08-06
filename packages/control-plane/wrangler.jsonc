@@ -110,11 +110,12 @@
 
   // -------------------------------------------------------------------------
   // Cron triggers — MUST match IMAGE_BUILD_SCHEDULER_CRON in
-  // src/image-builds/scheduler.ts ("7,37 * * * *"). The "* * * * *" trigger
+  // src/image-builds/scheduler.ts ("7,37 * * * *") and MODELS_DEV_SYNC_CRON in
+  // src/models-dev/sync.ts ("23 * * * *"). The "* * * * *" trigger
   // drives other per-minute scheduled work in the fetch/scheduled handler.
   // -------------------------------------------------------------------------
   "triggers": {
-    "crons": ["* * * * *", "7,37 * * * *"],
+    "crons": ["* * * * *", "7,37 * * * *", "23 * * * *"],
   },
 
   // -------------------------------------------------------------------------

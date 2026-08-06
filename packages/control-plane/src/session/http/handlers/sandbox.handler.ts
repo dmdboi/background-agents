@@ -7,8 +7,8 @@ import {
 } from "@open-inspect/shared";
 import type { ParticipantRole, SandboxEvent } from "../../../types";
 import { isDeadSandboxStatus } from "../../../sandbox/lifecycle/decisions";
-import type { OpenAITokenRefreshResult } from "../../openai-token-refresh-service";
-import type { XaiTokenRefreshResult } from "../../xai-token-refresh-service";
+import type { OAuthTokenRefreshResult } from "../../oauth-token-refresh-service";
+import type { OpenAIOAuthExtra } from "../../openai-oauth-config";
 import type { ScmCredentialsResult } from "../../scm-credentials-service";
 import type { SessionMessenger } from "../../messenger";
 import type { SessionRepository } from "../../repository";
@@ -36,8 +36,14 @@ export interface SandboxHandlerDeps {
   getSandbox: () => SandboxRow | null;
   isValidSandboxToken: (token: string | null, sandbox: SandboxRow | null) => Promise<boolean>;
   getSession: () => SessionRow | null;
-  refreshOpenAIToken: (session: SessionRow, log: Logger) => Promise<OpenAITokenRefreshResult>;
-  refreshXaiToken: (session: SessionRow, log: Logger) => Promise<XaiTokenRefreshResult>;
+  refreshOpenAIToken: (
+    session: SessionRow,
+    log: Logger
+  ) => Promise<OAuthTokenRefreshResult<OpenAIOAuthExtra>>;
+  refreshXaiToken: (
+    session: SessionRow,
+    log: Logger
+  ) => Promise<OAuthTokenRefreshResult<Record<string, never>>>;
   isManagedSecretsConfigured: () => boolean;
   getScmCredentials: (log: Logger) => Promise<ScmCredentialsResult>;
   messenger: SessionMessenger;

@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { SWRConfig } from "swr";
-import { DEFAULT_ENABLED_MODELS } from "@open-inspect/shared/models";
-import { MODEL_PREFERENCES_KEY, useEnabledModels } from "./use-enabled-models";
+import { DEFAULT_ENABLED_MODELS, MODEL_OPTIONS } from "@open-inspect/shared/models";
+import { MODEL_CATALOG_KEY, MODEL_PREFERENCES_KEY, useEnabledModels } from "./use-enabled-models";
 
 function wrapper(enabledModels: unknown) {
   return function TestWrapper({ children }: { children: ReactNode }) {
@@ -13,7 +13,10 @@ function wrapper(enabledModels: unknown) {
       <SWRConfig
         value={{
           provider: () => new Map(),
-          fallback: { [MODEL_PREFERENCES_KEY]: { enabledModels } },
+          fallback: {
+            [MODEL_PREFERENCES_KEY]: { enabledModels },
+            [MODEL_CATALOG_KEY]: { categories: MODEL_OPTIONS },
+          },
           revalidateIfStale: false,
         }}
       >
@@ -38,5 +41,16 @@ describe("useEnabledModels", () => {
     });
 
     expect(result.current.enabledModels).toEqual(DEFAULT_ENABLED_MODELS);
+  });
+
+  it("uses the static catalog for enabled model options when no fetch has resolved", () => {
+    const { result } = renderHook(() => useEnabledModels(), {
+      wrapper: wrapper(DEFAULT_ENABLED_MODELS),
+    });
+
+    const allOptionIds = result.current.enabledModelOptions.flatMap((group) =>
+      group.models.map((m) => m.id)
+    );
+    expect(allOptionIds).toEqual(DEFAULT_ENABLED_MODELS);
   });
 });

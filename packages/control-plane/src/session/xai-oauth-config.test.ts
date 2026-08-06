@@ -3,7 +3,8 @@ import type { SqlDatabase } from "../db/sql-database";
 import type { Logger } from "../logger";
 import type { SessionRow } from "./types";
 import { XaiTokenRefreshError } from "../auth/xai";
-import { XaiTokenRefreshService } from "./xai-token-refresh-service";
+import { OAuthTokenRefreshService } from "./oauth-token-refresh-service";
+import { xaiOAuthAdapter } from "./xai-oauth-config";
 
 const state = vi.hoisted(() => ({
   repo: new Map<number, Record<string, string>>(),
@@ -110,7 +111,13 @@ const logger = (): Logger =>
   }) as unknown as Logger;
 
 function service() {
-  return new XaiTokenRefreshService({} as SqlDatabase, "key", async () => 123, logger());
+  return new OAuthTokenRefreshService(
+    xaiOAuthAdapter,
+    {} as SqlDatabase,
+    "key",
+    async () => 123,
+    logger()
+  );
 }
 
 describe("XaiTokenRefreshService", () => {
@@ -226,7 +233,8 @@ describe("XaiTokenRefreshService", () => {
     });
     state.failWrites = true;
     const log = logger();
-    const refreshService = new XaiTokenRefreshService(
+    const refreshService = new OAuthTokenRefreshService(
+      xaiOAuthAdapter,
       {} as SqlDatabase,
       "key",
       async () => 123,

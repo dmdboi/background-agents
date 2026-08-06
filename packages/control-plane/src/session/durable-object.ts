@@ -78,8 +78,9 @@ import {
 } from "../db/secrets-validation";
 import { buildSessionTargetSecretSources } from "./session-target-secrets";
 import type { RepoIdentity, SessionRepositoryEntry } from "./repository-target";
-import { OpenAITokenRefreshService } from "./openai-token-refresh-service";
-import { XaiTokenRefreshService } from "./xai-token-refresh-service";
+import { OAuthTokenRefreshService } from "./oauth-token-refresh-service";
+import { openAiOAuthAdapter } from "./openai-oauth-config";
+import { xaiOAuthAdapter } from "./xai-oauth-config";
 import { prepareManagedProviderEnv } from "../sandbox/managed-provider-env";
 import { ScmCredentialsService } from "./scm-credentials-service";
 import { ParticipantService, getAvatarUrl } from "./participant-service";
@@ -487,7 +488,8 @@ export class SessionDO extends DurableObject<Env> {
         isValidSandboxToken: (token, sandbox) => this.isValidSandboxToken(token, sandbox),
         getSession: () => this.getSession(),
         refreshOpenAIToken: async (session, log) => {
-          const service = new OpenAITokenRefreshService(
+          const service = new OAuthTokenRefreshService(
+            openAiOAuthAdapter,
             this.db!,
             this.env.REPO_SECRETS_ENCRYPTION_KEY!,
             (sessionRow) => this.ensureRepoId(sessionRow),
@@ -496,7 +498,8 @@ export class SessionDO extends DurableObject<Env> {
           return service.refresh(session);
         },
         refreshXaiToken: async (session, log) => {
-          const service = new XaiTokenRefreshService(
+          const service = new OAuthTokenRefreshService(
+            xaiOAuthAdapter,
             this.db!,
             this.env.REPO_SECRETS_ENCRYPTION_KEY!,
             (sessionRow) => this.ensureRepoId(sessionRow),
