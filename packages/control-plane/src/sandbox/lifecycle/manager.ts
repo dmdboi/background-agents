@@ -203,11 +203,22 @@ export const DEFAULT_LIFECYCLE_CONFIG: Omit<SandboxLifecycleConfig, "controlPlan
   connectingTimeout: DEFAULT_CONNECTING_TIMEOUT_CONFIG,
 };
 
+// Cloudflare sandbox IDs are capped at 63 characters. session.id is the
+// Durable Object's own hex id (64 chars), so the repo-less branch below
+// must fit it — plus the "sandbox-"/"-<timestamp>" wrapper — under that
+// limit, not just the repo_owner-repo_name branch.
+const MAX_SANDBOX_ID_LENGTH = 63;
+
 function buildSandboxIdForSession(session: SessionRow, now: number): string {
-  const sandboxName = sessionHasRepository(session)
+  const rawName = sessionHasRepository(session)
     ? `${session.repo_owner}-${session.repo_name}`
     : session.id;
-  return `sandbox-${sandboxName}-${now}`;
+  const prefix = "sandbox-";
+  const suffix = `-${now}`;
+  const maxNameLength = MAX_SANDBOX_ID_LENGTH - prefix.length - suffix.length;
+  const sandboxName =
+    rawName.length > maxNameLength ? rawName.slice(0, maxNameLength).replace(/-+$/, "") : rawName;
+  return `${prefix}${sandboxName}${suffix}`;
 }
 
 /**
