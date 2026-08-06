@@ -302,7 +302,7 @@ export class SessionPullRequestService {
       });
 
       // Use user OAuth if available, otherwise fall back to GitHub App token
-      // (e.g. sessions triggered from Linear or other integrations without user GitHub OAuth)
+      // (e.g. sessions triggered from bot integrations without user GitHub OAuth)
       const prAuth = input.promptingAuth ?? appAuth;
 
       const fullBody =

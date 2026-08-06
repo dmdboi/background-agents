@@ -210,7 +210,7 @@ describe("session index routes", () => {
   });
 
   it.each<Principal>([
-    { kind: "service", service: "linear-bot", actor: null },
+    { kind: "service", service: "github-bot", actor: null },
     { kind: "sandbox", sessionId: "session-1" },
   ])("rejects createdBy=me for a $kind principal", async (principal) => {
     const response = await listSessions("?createdBy=me", principal);
@@ -234,7 +234,7 @@ describe("session index routes", () => {
   it("requires a human user for read-state mutations", async () => {
     const response = await patchReadState(JSON.stringify({ action: "mark_latest_message_read" }), {
       kind: "service",
-      service: "linear-bot",
+      service: "github-bot",
       actor: null,
     });
 

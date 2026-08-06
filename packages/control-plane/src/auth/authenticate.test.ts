@@ -16,14 +16,12 @@ const SECRETS = {
   SERVICE_AUTH_SECRET_WEB: "web-secret",
   SERVICE_AUTH_SECRET_SLACK_BOT: "slack-secret",
   SERVICE_AUTH_SECRET_GITHUB_BOT: "github-secret",
-  SERVICE_AUTH_SECRET_LINEAR_BOT: "linear-secret",
 };
 
 const SERVICE_SECRET: Record<ServiceName, string> = {
   web: SECRETS.SERVICE_AUTH_SECRET_WEB,
   "slack-bot": SECRETS.SERVICE_AUTH_SECRET_SLACK_BOT,
   "github-bot": SECRETS.SERVICE_AUTH_SECRET_GITHUB_BOT,
-  "linear-bot": SECRETS.SERVICE_AUTH_SECRET_LINEAR_BOT,
 };
 
 function createCtx(identityRow: Record<string, unknown> | null = null): RequestContext {
@@ -78,14 +76,14 @@ async function signedRequest(p: {
 describe("authenticate — service credentials", () => {
   it("resolves a valid signed request to a per-service principal", async () => {
     const body = JSON.stringify({ prompt: "hello" });
-    const request = await signedRequest({ service: "linear-bot", body });
+    const request = await signedRequest({ service: "github-bot", body });
     const result = await authenticate(request, createEnv(), createCtx());
 
     expect(isAuthError(result)).toBe(false);
     if (isAuthError(result)) return;
     expect(result.principal).toEqual({
       kind: "service",
-      service: "linear-bot",
+      service: "github-bot",
       actor: null,
     });
     // The handler must still be able to read the body after hashing.
@@ -141,21 +139,21 @@ describe("authenticate — service credentials", () => {
 
   it("keeps canonicalUserId null for actors the CP has never seen", async () => {
     const request = await signedRequest({
-      service: "linear-bot",
+      service: "github-bot",
       body: "{}",
-      actor: "linear:usr_9",
+      actor: "github:usr_9",
     });
     const result = await authenticate(request, createEnv(), createCtx(null));
     expect(isAuthError(result)).toBe(false);
     if (isAuthError(result)) return;
     expect(result.principal).toMatchObject({
-      actor: { canonicalUserId: null, participantUserId: "linear:usr_9" },
+      actor: { canonicalUserId: null, participantUserId: "github:usr_9" },
     });
   });
 
   it("rejects an unknown service name without fallback", async () => {
     const request = await signedRequest({
-      service: "linear-bot",
+      service: "github-bot",
       body: "{}",
       mutate: (headers) => {
         headers[SERVICE_HEADER] = "sandbox";
@@ -166,10 +164,10 @@ describe("authenticate — service credentials", () => {
   });
 
   it("fails 500 when the named service's secret is not bound", async () => {
-    const request = await signedRequest({ service: "linear-bot", body: "{}" });
+    const request = await signedRequest({ service: "github-bot", body: "{}" });
     const result = await authenticate(
       request,
-      createEnv({ SERVICE_AUTH_SECRET_LINEAR_BOT: undefined }),
+      createEnv({ SERVICE_AUTH_SECRET_GITHUB_BOT: undefined }),
       createCtx()
     );
     expect(result).toEqual({
@@ -184,8 +182,8 @@ describe("authenticate — service credentials", () => {
       // Body swapped after signing
       async () => {
         const headers = await buildServiceAuthHeaders({
-          service: "linear-bot",
-          secret: SERVICE_SECRET["linear-bot"],
+          service: "github-bot",
+          secret: SERVICE_SECRET["github-bot"],
           method: "POST",
           url: "https://cp.test.local/sessions",
           body: '{"a":1}',
@@ -207,7 +205,7 @@ describe("authenticate — service credentials", () => {
           },
         }),
       // Signed with the wrong service's secret
-      () => signedRequest({ service: "linear-bot", body: "{}", secret: SERVICE_SECRET.web }),
+      () => signedRequest({ service: "github-bot", body: "{}", secret: SERVICE_SECRET.web }),
     ];
     for (const build of tamperings) {
       const result = await authenticate(await build(), createEnv(), createCtx());
@@ -223,7 +221,7 @@ describe("authenticate — service credentials", () => {
     const request = new Request("https://cp.test.local/sessions", {
       method: "POST",
       headers: {
-        [SERVICE_HEADER]: "linear-bot",
+        [SERVICE_HEADER]: "github-bot",
         [SERVICE_SIGNATURE_HEADER]: "sig1.not-a-timestamp.nonce.sig",
       },
       body: "{}",
@@ -237,8 +235,8 @@ describe("authenticate — service credentials", () => {
   it("rejects an over-cap body as 413 before signature verification", async () => {
     const url = "https://cp.test.local/sessions";
     const headers = await buildServiceAuthHeaders({
-      service: "linear-bot",
-      secret: SERVICE_SECRET["linear-bot"],
+      service: "github-bot",
+      secret: SERVICE_SECRET["github-bot"],
       method: "POST",
       url,
       body: "{}",
@@ -259,7 +257,7 @@ describe("authenticate — service credentials", () => {
   });
 
   it("rejects expired signatures", async () => {
-    const request = await signedRequest({ service: "linear-bot", body: "{}" });
+    const request = await signedRequest({ service: "github-bot", body: "{}" });
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 6 * 60 * 1000);
     try {
       const result = await authenticate(request, createEnv(), createCtx());
@@ -277,8 +275,7 @@ describe("authenticate — service credentials", () => {
     const cases: Array<{ service: ServiceName; actor: string }> = [
       { service: "web", actor: "slack:U1" },
       { service: "slack-bot", actor: "github:1" },
-      { service: "github-bot", actor: "linear:usr_1" },
-      { service: "linear-bot", actor: "slack:U1" },
+      { service: "github-bot", actor: "slack:U1" },
       { service: "slack-bot", actor: "malformed" },
     ];
     for (const { service, actor } of cases) {
@@ -294,7 +291,7 @@ describe("authenticate — service credentials", () => {
 
   it("a failed service-signature attempt is terminal even with a bearer alongside", async () => {
     const request = await signedRequest({
-      service: "linear-bot",
+      service: "github-bot",
       body: "{}",
       secret: "wrong-secret",
       mutate: (headers) => {
@@ -377,8 +374,8 @@ describe("authenticate — nonce replay logging", () => {
       const url = "https://cp.test.local/sessions";
       const body = "{}";
       const headers = await buildServiceAuthHeaders({
-        service: "linear-bot",
-        secret: SERVICE_SECRET["linear-bot"],
+        service: "github-bot",
+        secret: SERVICE_SECRET["github-bot"],
         method: "POST",
         url,
         body,

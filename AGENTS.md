@@ -22,7 +22,6 @@ Three tiers connected by WebSockets:
 
 - `slack-bot` — Slack messages → coding sessions
 - `github-bot` — PR review assignments and @mention commands
-- `linear-bot` — Linear agent webhooks → coding sessions
 
 **Data flow**: User prompt → web client → control plane DO (WebSocket) → Cloudflare sandbox →
 streaming events back through the same WebSocket chain.
@@ -30,7 +29,7 @@ streaming events back through the same WebSocket chain.
 ### Package Dependency Graph
 
 ```
-@open-inspect/shared  ←  control-plane, web, slack-bot, github-bot, linear-bot
+@open-inspect/shared  ←  control-plane, web, slack-bot, github-bot
 ```
 
 **Build `@open-inspect/shared` first** whenever you change shared types. Other packages import from
@@ -45,7 +44,6 @@ it at build time.
 | `web`           | TypeScript / Next.js 16 + React 19 | User-facing dashboard, OAuth, real-time UI                  |
 | `slack-bot`     | TypeScript / CF Workers + Hono     | Slack event handler, session creation                       |
 | `github-bot`    | TypeScript / CF Workers + Hono     | PR review and @mention webhook handler                      |
-| `linear-bot`    | TypeScript / CF Workers + Hono     | Linear agent webhook handler                                |
 
 ## Common Commands
 
@@ -66,7 +64,6 @@ npm run test:integration -w @open-inspect/control-plane  # integration (workerd/
 npm test -w @open-inspect/web
 npm test -w @open-inspect/github-bot
 npm test -w @open-inspect/slack-bot
-npm test -w @open-inspect/linear-bot
 
 # Tests — Python (pytest)
 cd packages/sandbox-runtime && pytest tests/ -v
@@ -84,7 +81,7 @@ All TypeScript packages use **Vitest**; Python uses **pytest** + pytest-asyncio.
 - **control-plane unit**: co-located as `src/**/*.test.ts` — run in Node environment
 - **control-plane integration**: separate `test/integration/*.test.ts` — run in workerd via
   `@cloudflare/vitest-pool-workers` with real D1 bindings
-- **web, slack-bot, linear-bot**: co-located `src/**/*.test.ts`
+- **web, slack-bot**: co-located `src/**/*.test.ts`
 - **github-bot**: separate `test/*.test.ts`
 - **sandbox-runtime**: `tests/test_*.py`
 
@@ -151,9 +148,9 @@ under 72 characters. Use the PR body for details, not the commit message.
 Pushing to `main` runs a `deploy` job (`.github/workflows/ci.yml`) gated on lint/typecheck/tests
 passing. It runs `scripts/setup.sh`, which provisions any missing Cloudflare resources (D1, R2, KV,
 queues), pushes secrets from named GitHub Actions secrets (`CLOUDFLARE_API_TOKEN`,
-`OI_GITHUB_APP_ID`, etc.), then builds and `wrangler deploy`s all five Workers — control-plane, web
-(via OpenNext), slack-bot, github-bot, linear-bot. Auto-generated internal secrets are cached across
-runs in `.secrets` via `actions/cache` so re-deploys don't rotate them.
+`OI_GITHUB_APP_ID`, etc.), then builds and `wrangler deploy`s all four Workers — control-plane, web
+(via OpenNext), slack-bot, github-bot. Auto-generated internal secrets are cached across runs in
+`.secrets` via `actions/cache` so re-deploys don't rotate them.
 
 CI runs lint, typecheck, and tests for all TypeScript and Python packages on every push and PR.
 

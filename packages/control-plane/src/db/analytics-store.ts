@@ -9,7 +9,7 @@ import type { SpawnSource } from "@open-inspect/shared";
 import type { SqlDatabase } from "./sql-database";
 
 /** Spawn sources that represent direct human-initiated sessions. */
-export const HUMAN_SPAWN_SOURCES: SpawnSource[] = ["user", "slack-bot", "linear-bot", "github-bot"];
+export const HUMAN_SPAWN_SOURCES: SpawnSource[] = ["user", "slack-bot", "github-bot"];
 
 export interface AnalyticsFilters {
   startAt: number;

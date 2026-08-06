@@ -67,8 +67,8 @@ async function serviceFetch(url: string, init?: { method?: string; body?: string
   const method = init?.method ?? "GET";
   const headers = {
     ...(await buildServiceAuthHeaders({
-      service: "linear-bot",
-      secret: "test-service-secret-linear-bot",
+      service: "github-bot",
+      secret: "test-service-secret-github-bot",
       method,
       url,
       body: init?.body,

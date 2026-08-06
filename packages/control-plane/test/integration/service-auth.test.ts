@@ -16,7 +16,6 @@ const SERVICE_SECRET: Record<ServiceName, string> = {
   web: "test-service-secret-web",
   "slack-bot": "test-service-secret-slack-bot",
   "github-bot": "test-service-secret-github-bot",
-  "linear-bot": "test-service-secret-linear-bot",
 };
 
 async function signedFetch(p: {
@@ -74,8 +73,8 @@ describe("sig1 service-credential authentication", () => {
     const createdBy = "a".repeat(32);
     const signedUrl = `https://test.local/sessions?limit=5&createdBy=${createdBy}`;
     const headers = await buildServiceAuthHeaders({
-      service: "linear-bot",
-      secret: SERVICE_SECRET["linear-bot"],
+      service: "github-bot",
+      secret: SERVICE_SECRET["github-bot"],
       method: "GET",
       url: signedUrl,
     });
@@ -90,7 +89,7 @@ describe("sig1 service-credential authentication", () => {
 
   it("delivers the signed body intact to the handler (D1 write lands)", async () => {
     const response = await signedFetch({
-      service: "linear-bot",
+      service: "github-bot",
       method: "PUT",
       url: "https://test.local/secrets",
       body: JSON.stringify({ secrets: { SIGNED_BODY_TEST: "intact" } }),
@@ -108,8 +107,8 @@ describe("sig1 service-credential authentication", () => {
     const url = "https://test.local/secrets";
     const intactBody = JSON.stringify({ secrets: { SIGNED_BODY_TEST: "intact" } });
     const headers = await buildServiceAuthHeaders({
-      service: "linear-bot",
-      secret: SERVICE_SECRET["linear-bot"],
+      service: "github-bot",
+      secret: SERVICE_SECRET["github-bot"],
       method: "PUT",
       url,
       body: intactBody,
@@ -245,7 +244,7 @@ describe("sig1 service-credential authentication", () => {
 
   it("rejects an unknown service name", async () => {
     const response = await signedFetch({
-      service: "linear-bot",
+      service: "github-bot",
       method: "GET",
       url: "https://test.local/sessions",
       mutateHeaders: (headers) => {

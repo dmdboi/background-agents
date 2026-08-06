@@ -265,13 +265,12 @@ function logMismatchRejected(
 /**
  * The bot service allowed to post each normalized automation event source.
  * `null` marks sources that are not bot-posted (sentry/webhook arrive on the
- * CP's own public webhook surface; linear posts no normalized events today)
- * — an explicit exemption, not a missing row.
+ * CP's own public webhook surface) — an explicit exemption, not a missing
+ * row.
  */
 const EVENT_SOURCE_SERVICE: Record<AutomationEventSource, ServiceName | null> = {
   slack: "slack-bot",
   github: "github-bot",
-  linear: null,
   sentry: null,
   webhook: null,
 };

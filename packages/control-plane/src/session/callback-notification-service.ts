@@ -1,8 +1,8 @@
 /**
- * CallbackNotificationService - Slack/Linear bot callback notifications.
+ * CallbackNotificationService - Slack bot callback notifications.
  *
  * Extracted from SessionDO to reduce its size. Handles:
- * - Notifying originating clients (Slack, Linear) on execution completion
+ * - Notifying originating clients (Slack) on execution completion
  * - Throttled tool-call progress callbacks
  * - HMAC payload signing for callback authentication
  */
@@ -11,7 +11,6 @@ import { computeHmacHex } from "@open-inspect/shared/auth";
 import { callbackSigningSecret, type CallbackDestination } from "../auth/service/callback-signing";
 import type { Logger } from "../logger";
 import { deliverWithRetry } from "./callback-delivery";
-import { notifyLinearStarted } from "./linear-start-callback";
 import type { SessionRow } from "./types";
 
 /**
@@ -32,9 +31,7 @@ export interface CallbackServiceEnv {
   // holds every bot's key as verifier and signs callbacks with the
   // destination's own.
   SERVICE_AUTH_SECRET_SLACK_BOT?: string;
-  SERVICE_AUTH_SECRET_LINEAR_BOT?: string;
   SLACK_BOT?: Fetcher;
-  LINEAR_BOT?: Fetcher;
   SCHEDULER_CALLBACK?: Fetcher;
 }
 
@@ -53,7 +50,7 @@ export interface CallbackServiceDeps {
  * Per-session cap on remembered tool callIds. Used to dedupe notifications
  * across provider lifecycles (Anthropic emits running+completed, OpenAI may
  * emit only completed). FIFO eviction; the failure mode on overflow is a
- * single duplicate Linear/Slack activity, not data loss.
+ * single duplicate Slack activity, not data loss.
  */
 const NOTIFIED_CALL_IDS_CAP = 500;
 
@@ -100,60 +97,18 @@ export class CallbackNotificationService {
    * Where a non-automation callback goes and which key signs it — one
    * decision, so destination and signing key cannot diverge (the CP signs
    * with the DESTINATION bot's secret). Automation callbacks
-   * are routed to the SchedulerDO before this is consulted. Non-linear
-   * sources default to the slack bot for backward compatibility (web
-   * sources, etc.).
+   * are routed to the SchedulerDO before this is consulted. All non-automation
+   * sources route to the slack bot.
    */
-  private resolveCallbackRoute(source: string | null): {
+  private resolveCallbackRoute(): {
     binding: Fetcher | undefined;
     secret: string | undefined;
   } {
-    const destination: CallbackDestination = source === "linear" ? "linear-bot" : "slack-bot";
+    const destination: CallbackDestination = "slack-bot";
     return {
-      binding: destination === "linear-bot" ? this.env.LINEAR_BOT : this.env.SLACK_BOT,
+      binding: this.env.SLACK_BOT,
       secret: callbackSigningSecret(this.env, destination),
     };
-  }
-
-  /** Notify the Linear worker after a Linear message is dispatched to a live sandbox. */
-  async notifyStarted(messageId: string): Promise<void> {
-    const message = this.repository.getMessageCallbackContext(messageId);
-    if (!message?.callback_context || message.source !== "linear") {
-      this.log.debug("callback.started", {
-        message_id: messageId,
-        outcome: "skipped",
-        skip_reason: message?.callback_context ? "non_linear_source" : "no_callback_context",
-      });
-      return;
-    }
-
-    const { binding, secret } = this.resolveCallbackRoute("linear");
-    if (!secret) {
-      this.log.debug("callback.started", {
-        message_id: messageId,
-        outcome: "skipped",
-        skip_reason: "no_secret",
-      });
-      return;
-    }
-    if (!binding) {
-      this.log.debug("callback.started", {
-        message_id: messageId,
-        outcome: "skipped",
-        skip_reason: "no_binding",
-      });
-      return;
-    }
-
-    await notifyLinearStarted({
-      messageId,
-      callbackContext: message.callback_context,
-      sessionId: this.getSessionId(),
-      secret,
-      binding,
-      log: this.log,
-      sleep: this.sleep,
-    });
   }
 
   /**
@@ -187,7 +142,7 @@ export class CallbackNotificationService {
         return;
       }
 
-      const { binding, secret } = this.resolveCallbackRoute(source);
+      const { binding, secret } = this.resolveCallbackRoute();
       if (!secret) {
         result.rejectReason = "no_secret";
         return;
@@ -372,7 +327,7 @@ export class CallbackNotificationService {
       return;
     }
 
-    const { binding, secret } = this.resolveCallbackRoute(source);
+    const { binding, secret } = this.resolveCallbackRoute();
     if (!secret) {
       this.log.debug("callback.tool_call", {
         message_id: messageId,

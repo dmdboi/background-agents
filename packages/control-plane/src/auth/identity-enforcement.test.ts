@@ -284,9 +284,6 @@ describe("resolveCanonicalUserId", () => {
 describe("mayAttachCallbackContext", () => {
   it("restricts callbackContext to callback-owning bots", () => {
     expect(mayAttachCallbackContext(createCtx(SLACK_BOT_PRINCIPAL))).toBe(true);
-    expect(
-      mayAttachCallbackContext(createCtx({ kind: "service", service: "linear-bot", actor: null }))
-    ).toBe(true);
     expect(mayAttachCallbackContext(createCtx(USER_PRINCIPAL))).toBe(false);
     expect(
       mayAttachCallbackContext(createCtx({ kind: "service", service: "github-bot", actor: null }))

@@ -7,7 +7,6 @@ const providerIssuers = [
   ["github", "https://github.com"],
   ["google", "https://accounts.google.com"],
   ["slack", null],
-  ["linear", null],
 ] as const;
 
 describe("UserStore", () => {

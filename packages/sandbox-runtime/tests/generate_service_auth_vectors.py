@@ -74,17 +74,6 @@ VECTOR_INPUTS: list[dict[str, Any]] = [
         "actor": "github:583231",
     },
     {
-        "name": "linear-bot PUT with query params",
-        "service": "linear-bot",
-        "secret": "linear-secret-0004",
-        "timestampMs": 1753142400003,
-        "nonce": "1234abcd5678ef90",
-        "method": "PUT",
-        "url": "https://control-plane.example.com/integration-config?workspace=w1&team=t2",
-        "body": '{"enabled":true}',
-        "actor": "linear:usr_42",
-    },
-    {
         "name": "web POST, JSON body, no actor",
         "service": "web",
         "secret": "web-secret-0001",

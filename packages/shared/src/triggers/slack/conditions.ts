@@ -43,7 +43,7 @@ function isNonEmptyStringArray(value: unknown): value is string[] {
 
 /**
  * Slack condition handlers. `slack_actor` is a distinct slack-only handler — the
- * github/linear `actor` handler passes through for slack, so it cannot be reused.
+ * github `actor` handler passes through for slack, so it cannot be reused.
  */
 export const slackConditions = {
   text_match: {

@@ -18,13 +18,13 @@ execution backend (Cloudflare Containers via the Sandbox SDK) all run as Cloudfl
 Containers in one account. There is no separate sandbox provider to choose and no separate web
 hosting provider to choose.
 
-| What                                                     | How it's created                                                                                                   |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| D1 database, R2 bucket, KV namespaces, queues            | `./scripts/setup.sh` (idempotent — creates if missing, skips if present)                                           |
-| Control plane, slack-bot, github-bot, linear-bot Workers | `wrangler deploy`, run by `scripts/setup.sh`                                                                       |
-| Web app (Next.js via OpenNext)                           | `npx opennextjs-cloudflare deploy`, run by `scripts/setup.sh`                                                      |
-| Sandbox execution image                                  | `packages/control-plane/Dockerfile`, built as part of control-plane's `wrangler deploy` via the `containers` block |
-| Secrets                                                  | `wrangler secret put`, run by `scripts/setup.sh` (auto-generated internal secrets + prompted operator credentials) |
+| What                                          | How it's created                                                                                                   |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| D1 database, R2 bucket, KV namespaces, queues | `./scripts/setup.sh` (idempotent — creates if missing, skips if present)                                           |
+| Control plane, slack-bot, github-bot Workers  | `wrangler deploy`, run by `scripts/setup.sh`                                                                       |
+| Web app (Next.js via OpenNext)                | `npx opennextjs-cloudflare deploy`, run by `scripts/setup.sh`                                                      |
+| Sandbox execution image                       | `packages/control-plane/Dockerfile`, built as part of control-plane's `wrangler deploy` via the `containers` block |
+| Secrets                                       | `wrangler secret put`, run by `scripts/setup.sh` (auto-generated internal secrets + prompted operator credentials) |
 
 **Your job**: Create accounts, gather credentials, fill in the non-secret placeholders in each
 package's `wrangler.jsonc`/`wrangler.toml`, and run `./scripts/setup.sh`. **`scripts/setup.sh`'s
@@ -44,7 +44,6 @@ Create accounts on these services before continuing:
 | [GitHub](https://github.com/settings/developers) | OAuth + repository access                            |
 | [Anthropic](https://console.anthropic.com)       | Claude API                                           |
 | [Slack](https://api.slack.com/apps) _(optional)_ | Slack bot integration                                |
-| Linear _(optional)_                              | Linear agent integration                             |
 | GitHub App Webhooks _(optional)_                 | GitHub bot (PR reviews)                              |
 
 ### Required Tools
@@ -285,35 +284,14 @@ configure this in **Step 7** after running `scripts/setup.sh`.
 
 ---
 
-## Step 4b: Create a Linear OAuth App (Optional)
-
-Skip this step if you don't need the Linear Agent integration.
-
-1. Create an application in **Linear Settings → API → Applications**.
-2. Enable webhooks and subscribe to **Agent session events**. **Permission changes** and **Inbox
-   notifications** are also useful operational signals.
-3. Enable **Client credentials tokens**.
-4. Configure these URLs, replacing the deployment name and Workers subdomain:
-   - Callback URL:
-     `https://open-inspect-linear-bot-{deployment_name}.YOUR-SUBDOMAIN.workers.dev/oauth/callback`
-   - Webhook URL:
-     `https://open-inspect-linear-bot-{deployment_name}.YOUR-SUBDOMAIN.workers.dev/webhook`
-5. Note the client ID (goes in `packages/linear-bot/wrangler.toml`'s `LINEAR_CLIENT_ID` var), client
-   secret, and webhook signing secret (both pushed as secrets by `scripts/setup.sh`).
-
-The app is installed after deployment in **Step 9**. Runtime access uses replaceable
-client-credentials tokens; authorization-code refresh tokens are not stored as runtime credentials.
-
----
-
 ## Step 5: Anthropic API Key
 
 1. Go to [Anthropic Console](https://console.anthropic.com)
 2. Create an API key
 3. Note the **API Key** (starts with `sk-ant-`)
 
-`ANTHROPIC_API_KEY` is used by slack-bot and linear-bot (for classification/summarization) and is
-pushed as a secret by `scripts/setup.sh`.
+`ANTHROPIC_API_KEY` is used by slack-bot (for classification/summarization) and is pushed as a
+secret by `scripts/setup.sh`.
 
 > **Want to use your OpenAI ChatGPT subscription?** See [Using OpenAI Models](OPENAI_MODELS.md) for
 > setup instructions (can be configured after deployment).
@@ -363,8 +341,6 @@ referenced throughout this guide.
   you've reviewed the channel-message trigger behavior.
 - `packages/github-bot/wrangler.toml`: `vars.DEPLOYMENT_NAME`, `vars.APP_NAME`,
   `vars.GITHUB_BOT_USERNAME` (see Step 8 for how to find this).
-- `packages/linear-bot/wrangler.toml`: `vars.CONTROL_PLANE_URL`, `vars.WEB_APP_URL`,
-  `vars.DEPLOYMENT_NAME`, `vars.LINEAR_CLIENT_ID`, `vars.WORKER_URL`.
 - `packages/web/wrangler.toml`: `vars.CONTROL_PLANE_URL`, `vars.NEXT_PUBLIC_WS_URL` (also exported
   as an env var before the build — see the file's own header comment), and optionally
   `NEXT_PUBLIC_APP_NAME` / `NEXT_PUBLIC_APP_SHORT_NAME` / `NEXT_PUBLIC_APP_ICON_URL` for
@@ -387,9 +363,8 @@ With wrangler authenticated (Step 2) and the values from Step 6 filled in, run:
 You'll be prompted for operator-supplied secrets (leave any blank to skip and set later by hand):
 `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_CLIENT_SECRET`,
 `GITHUB_WEBHOOK_SECRET`, `GOOGLE_CLIENT_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_SIGNING_SECRET`,
-`LINEAR_WEBHOOK_SECRET`, `LINEAR_CLIENT_SECRET`, `LINEAR_API_KEY`, `ANTHROPIC_API_KEY`. Export any
-of these as environment variables beforehand to skip their prompt (also how CI does it — see
-[Step 11](#step-11-set-up-cicd-optional)).
+`ANTHROPIC_API_KEY`. Export any of these as environment variables beforehand to skip their prompt
+(also how CI does it — see [Step 10](#step-10-set-up-cicd-optional)).
 
 The script then, in order:
 
@@ -400,7 +375,7 @@ The script then, in order:
 4. Creates queues (+ dead-letter queues) if missing
 5. Generates (or reuses cached) internal secrets in a gitignored `.secrets` file, and pushes both
    those and the operator-supplied secrets to the right Worker via `wrangler secret put`
-6. Builds and deploys control-plane, slack-bot, github-bot, and linear-bot (`npm run build` then
+6. Builds and deploys control-plane, slack-bot, and github-bot (`npm run build` then
    `wrangler deploy`), then builds and deploys web via
    `npm run build:cloudflare -w @open-inspect/web && npx opennextjs-cloudflare deploy`
 
@@ -505,23 +480,7 @@ For day-to-day workflows, see [GitHub Integration](./integrations/GITHUB.md).
 
 ---
 
-## Step 9: Install the Linear Agent (If Using Linear)
-
-After the Linear bot Worker is deployed, visit:
-
-```text
-https://open-inspect-linear-bot-{deployment_name}.YOUR-SUBDOMAIN.workers.dev/oauth/authorize
-```
-
-A Linear workspace admin must approve the installation. After installation, the agent appears in
-mention and assignment menus. Test it by mentioning the agent on an issue, then use **View Session**
-to follow the corresponding Open-Inspect session.
-
-For configuration and troubleshooting, see [Linear Integration](./integrations/LINEAR.md).
-
----
-
-## Step 10: Verify Deployment
+## Step 9: Verify Deployment
 
 ```bash
 # 1. Control Plane health check (replace {deployment_name} and YOUR-SUBDOMAIN)
@@ -543,7 +502,7 @@ Worker's own Durable Objects/Containers, so the control-plane health check above
 
 ---
 
-## Step 11: Set Up CI/CD (Optional)
+## Step 10: Set Up CI/CD (Optional)
 
 `.github/workflows/ci.yml` already includes a `deploy` job that runs `scripts/setup.sh` on every
 push to `main`, gated on lint/typecheck/tests passing. It reads credentials from named GitHub
@@ -564,9 +523,6 @@ Go to your fork's Settings → Secrets and variables → Actions, and add:
 | `OI_GOOGLE_CLIENT_SECRET`       | Google OAuth client secret (blank if Google sign-in disabled) |
 | `OI_SLACK_BOT_TOKEN`            | Slack bot token (blank if Slack disabled)                     |
 | `OI_SLACK_SIGNING_SECRET`       | Slack signing secret (blank if Slack disabled)                |
-| `OI_LINEAR_WEBHOOK_SECRET`      | Linear webhook secret (blank if Linear disabled)              |
-| `OI_LINEAR_CLIENT_SECRET`       | Linear OAuth client secret (blank if Linear disabled)         |
-| `OI_LINEAR_API_KEY`             | Linear API key (blank if Linear disabled)                     |
 | `OI_ANTHROPIC_API_KEY`          | Anthropic API key                                             |
 
 ```bash
@@ -627,13 +583,12 @@ Build the shared package and the Worker before deploying:
 
 ```bash
 npm run build -w @open-inspect/shared
-npm run build -w @open-inspect/control-plane -w @open-inspect/slack-bot -w @open-inspect/github-bot -w @open-inspect/linear-bot
+npm run build -w @open-inspect/control-plane -w @open-inspect/slack-bot -w @open-inspect/github-bot
 
 # Verify bundles exist
 ls packages/control-plane/dist/index.js
 ls packages/slack-bot/dist/index.js
 ls packages/github-bot/dist/index.js
-ls packages/linear-bot/dist/index.js
 ```
 
 ### Slack bot not responding
@@ -746,7 +701,7 @@ Set these in the relevant wrangler configs:
 
 ```
 # packages/control-plane/wrangler.jsonc, packages/slack-bot/wrangler.toml,
-# packages/github-bot/wrangler.toml, packages/linear-bot/wrangler.toml:
+# packages/github-bot/wrangler.toml:
 APP_NAME = "Acme Bot"
 
 # packages/web/wrangler.toml (and exported before `npm run build:cloudflare`, per the
@@ -756,9 +711,9 @@ NEXT_PUBLIC_APP_SHORT_NAME = "Acme"
 NEXT_PUBLIC_APP_ICON_URL = "/branding/acme-logo.svg"   # or "https://cdn.example.com/logo.svg"
 ```
 
-`APP_NAME` shows up in the Slack App Home settings page, the Linear OAuth success page and
-completion comments, the PR body footer, and outbound HTTP User-Agent headers. The `NEXT_PUBLIC_*`
-values control the web tab title, sign-in page, landing hero, and sidebar header.
+`APP_NAME` shows up in the Slack App Home settings page, completion comments, the PR body footer,
+and outbound HTTP User-Agent headers. The `NEXT_PUBLIC_*` values control the web tab title, sign-in
+page, landing hero, and sidebar header.
 
 After changing the `NEXT_PUBLIC_*` values, rebuild and redeploy the web app
 (`npm run build:cloudflare -w @open-inspect/web && (cd packages/web && npx opennextjs-cloudflare deploy)`)

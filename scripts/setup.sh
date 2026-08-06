@@ -25,7 +25,6 @@ R2_BUCKET_NAME="open-inspect-media"
 CONTROL_PLANE_WORKER="open-inspect-control-plane"
 SLACK_BOT_WORKER="open-inspect-slack-bot"
 GITHUB_BOT_WORKER="open-inspect-github-bot"
-LINEAR_BOT_WORKER="open-inspect-linear-bot"
 WEB_WORKER="open-inspect-web"
 
 echo "=============================================================="
@@ -105,7 +104,6 @@ create_kv_if_missing() {
 create_kv_if_missing "REPOS_CACHE" "$CONTROL_PLANE_WORKER"
 create_kv_if_missing "SLACK_KV" "$SLACK_BOT_WORKER"
 create_kv_if_missing "GITHUB_KV" "$GITHUB_BOT_WORKER"
-create_kv_if_missing "LINEAR_KV" "$LINEAR_BOT_WORKER"
 
 # -----------------------------------------------------------------------
 # 4. Queues (+ dead-letter queues)
@@ -170,7 +168,6 @@ IMAGE_CALLBACK_TOKEN_PEPPER="$(get_or_generate_secret IMAGE_CALLBACK_TOKEN_PEPPE
 SERVICE_AUTH_SECRET_WEB="$(get_or_generate_secret SERVICE_AUTH_SECRET_WEB)"
 SERVICE_AUTH_SECRET_SLACK_BOT="$(get_or_generate_secret SERVICE_AUTH_SECRET_SLACK_BOT)"
 SERVICE_AUTH_SECRET_GITHUB_BOT="$(get_or_generate_secret SERVICE_AUTH_SECRET_GITHUB_BOT)"
-SERVICE_AUTH_SECRET_LINEAR_BOT="$(get_or_generate_secret SERVICE_AUTH_SECRET_LINEAR_BOT)"
 # HMAC key for deriving per-sandbox code-server passwords (cloudflare-provider.ts).
 # Not tied to any external service, so it's generated the same way as the
 # other internal secrets rather than prompted for.
@@ -208,10 +205,7 @@ prompt_secret GITHUB_WEBHOOK_SECRET "GITHUB_WEBHOOK_SECRET"
 prompt_secret GOOGLE_CLIENT_SECRET "GOOGLE_CLIENT_SECRET (blank if Google login is disabled)"
 prompt_secret SLACK_BOT_TOKEN "SLACK_BOT_TOKEN (blank if Slack is disabled)"
 prompt_secret SLACK_SIGNING_SECRET "SLACK_SIGNING_SECRET (blank if Slack is disabled)"
-prompt_secret LINEAR_WEBHOOK_SECRET "LINEAR_WEBHOOK_SECRET (blank if Linear is disabled)"
-prompt_secret LINEAR_CLIENT_SECRET "LINEAR_CLIENT_SECRET (blank if Linear is disabled)"
-prompt_secret LINEAR_API_KEY "LINEAR_API_KEY (blank if Linear is disabled)"
-prompt_secret ANTHROPIC_API_KEY "ANTHROPIC_API_KEY (used by slack-bot and linear-bot)"
+prompt_secret ANTHROPIC_API_KEY "ANTHROPIC_API_KEY (used by slack-bot)"
 
 # --- 5c. Push secrets to each worker -----------------------------------
 #
@@ -238,7 +232,6 @@ put_secret "$CONTROL_PLANE_WORKER" IMAGE_CALLBACK_TOKEN_PEPPER "$IMAGE_CALLBACK_
 put_secret "$CONTROL_PLANE_WORKER" SERVICE_AUTH_SECRET_WEB "$SERVICE_AUTH_SECRET_WEB"
 put_secret "$CONTROL_PLANE_WORKER" SERVICE_AUTH_SECRET_SLACK_BOT "$SERVICE_AUTH_SECRET_SLACK_BOT"
 put_secret "$CONTROL_PLANE_WORKER" SERVICE_AUTH_SECRET_GITHUB_BOT "$SERVICE_AUTH_SECRET_GITHUB_BOT"
-put_secret "$CONTROL_PLANE_WORKER" SERVICE_AUTH_SECRET_LINEAR_BOT "$SERVICE_AUTH_SECRET_LINEAR_BOT"
 put_secret "$CONTROL_PLANE_WORKER" CLOUDFLARE_SANDBOX_CODE_SERVER_PASSWORD_SECRET "$CLOUDFLARE_SANDBOX_CODE_SERVER_PASSWORD_SECRET"
 put_secret "$CONTROL_PLANE_WORKER" GITHUB_APP_ID "${GITHUB_APP_ID:-}"
 put_secret "$CONTROL_PLANE_WORKER" GITHUB_APP_PRIVATE_KEY "${GITHUB_APP_PRIVATE_KEY:-}"
@@ -266,14 +259,6 @@ put_secret "$GITHUB_BOT_WORKER" GITHUB_APP_PRIVATE_KEY "${GITHUB_APP_PRIVATE_KEY
 put_secret "$GITHUB_BOT_WORKER" GITHUB_APP_INSTALLATION_ID "${GITHUB_APP_INSTALLATION_ID:-}"
 put_secret "$GITHUB_BOT_WORKER" GITHUB_WEBHOOK_SECRET "${GITHUB_WEBHOOK_SECRET:-}"
 
-echo ""
-echo "Pushing secrets to linear-bot ($LINEAR_BOT_WORKER)..."
-put_secret "$LINEAR_BOT_WORKER" SERVICE_AUTH_SECRET "$SERVICE_AUTH_SECRET_LINEAR_BOT"
-put_secret "$LINEAR_BOT_WORKER" LINEAR_WEBHOOK_SECRET "${LINEAR_WEBHOOK_SECRET:-}"
-put_secret "$LINEAR_BOT_WORKER" LINEAR_CLIENT_SECRET "${LINEAR_CLIENT_SECRET:-}"
-put_secret "$LINEAR_BOT_WORKER" ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY:-}"
-put_secret "$LINEAR_BOT_WORKER" LINEAR_API_KEY "${LINEAR_API_KEY:-}"
-
 # -----------------------------------------------------------------------
 # 6. Deploy Workers (control-plane first, for clarity — bindings are
 #    declarative, so ordering doesn't affect wrangler's own behavior)
@@ -292,10 +277,6 @@ echo "Building and deploying github-bot..."
 npm run build -w @open-inspect/github-bot
 (cd packages/github-bot && $WRANGLER deploy)
 
-echo "Building and deploying linear-bot..."
-npm run build -w @open-inspect/linear-bot
-(cd packages/linear-bot && $WRANGLER deploy)
-
 echo "Building and deploying web..."
 echo "  (NEXT_PUBLIC_* vars are inlined at build time — see comment in"
 echo "  packages/web/wrangler.toml. Export them before this script if you"
@@ -307,5 +288,5 @@ npm run build:cloudflare -w @open-inspect/web
 echo ""
 echo "=============================================================="
 echo " Done. Verify each Worker in the Cloudflare dashboard, then"
-echo " confirm end-to-end auth (GitHub OAuth, Slack, Linear) manually."
+echo " confirm end-to-end auth (GitHub OAuth, Slack) manually."
 echo "=============================================================="

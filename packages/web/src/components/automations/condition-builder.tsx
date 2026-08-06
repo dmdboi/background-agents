@@ -36,7 +36,6 @@ const CONDITION_LABELS: Record<string, string> = {
   path_glob: "Path Glob",
   actor: "Actor",
   check_conclusion: "Check Conclusion",
-  linear_status: "Linear Status",
   text_match: "Message Text",
   slack_channel: "Slack Channel",
   slack_actor: "Slack User",

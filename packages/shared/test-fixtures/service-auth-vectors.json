@@ -57,25 +57,6 @@
       }
     },
     {
-      "name": "linear-bot PUT with query params",
-      "service": "linear-bot",
-      "secret": "linear-secret-0004",
-      "timestampMs": 1753142400003,
-      "nonce": "1234abcd5678ef90",
-      "method": "PUT",
-      "url": "https://control-plane.example.com/integration-config?workspace=w1&team=t2",
-      "body": "{\"enabled\":true}",
-      "actor": "linear:usr_42",
-      "expected": {
-        "pathname": "/integration-config",
-        "canonicalQuery": "team=t2&workspace=w1",
-        "bodySha256Hex": "26b3426b2593763c96d0890b4a77a0bbf66d13fc512b0c6b138a23c290f30a2a",
-        "canonicalString": "sig1\nlinear-bot\n1753142400003\n1234abcd5678ef90\nPUT\n/integration-config\nteam=t2&workspace=w1\n26b3426b2593763c96d0890b4a77a0bbf66d13fc512b0c6b138a23c290f30a2a\nlinear:usr_42",
-        "signatureHex": "3e9ddc2b5c9af4b503e44ea4f177a7343a62ea8fcc023888e9bef29bc7fcdbdc",
-        "signatureHeader": "sig1.1753142400003.1234abcd5678ef90.3e9ddc2b5c9af4b503e44ea4f177a7343a62ea8fcc023888e9bef29bc7fcdbdc"
-      }
-    },
-    {
       "name": "web POST, JSON body, no actor",
       "service": "web",
       "secret": "web-secret-0001",

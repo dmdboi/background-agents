@@ -190,13 +190,12 @@ request-lifetime durability window and makes retries safe across all providers.
 
 An automation targets repositories (`repositories: [{repoOwner, repoName, baseBranch?}]`) and/or
 environments (`environmentIds: ["env_…"]`) — up to 10 combined; multi-target selections require a
-schedule trigger, and the repo-scoped `github_event`/`linear_event` triggers take exactly one
-repository and no environments. Each firing records one **invocation**; a non-skipped invocation
-fans out into one **run** per target, and each run links to one session. A repository run works that
-repository in its own session; an environment run opens the environment's full workspace, resolved
-at launch time. Runs snapshot their target at firing time, so editing the selection never rewrites
-history. See [docs/MULTI_REPO_AUTOMATIONS.md](../../docs/MULTI_REPO_AUTOMATIONS.md) for the design
-decisions.
+schedule trigger, and the repo-scoped `github_event` trigger takes exactly one repository and no
+environments. Each firing records one **invocation**; a non-skipped invocation fans out into one
+**run** per target, and each run links to one session. A repository run works that repository in its
+own session; an environment run opens the environment's full workspace, resolved at launch time.
+Runs snapshot their target at firing time, so editing the selection never rewrites history. See
+[docs/MULTI_REPO_AUTOMATIONS.md](../../docs/MULTI_REPO_AUTOMATIONS.md) for the design decisions.
 
 An invocation's status is **derived from its child runs, never stored**: no children → `skipped`;
 any child starting/running → `starting`/`running`; all terminal → `completed` (none failed),

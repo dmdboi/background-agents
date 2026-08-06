@@ -9,13 +9,13 @@ import { webhookSource, webhookConditions } from "./webhook";
 import { githubSource } from "./github";
 import { slackSource, slackConditions } from "./slack";
 
-// GitHub and Linear condition handlers (stubs for Phase 2c).
+// GitHub condition handlers (stubs for Phase 2c).
 // These need to exist so that the ConditionRegistry is complete.
 import { matchGlob } from "./glob";
 import type { AutomationEvent } from "./types";
 
 /**
- * GitHub + Linear condition handlers defined here (cross-source).
+ * GitHub condition handlers defined here (cross-source).
  * Will move to source modules when those ship in Phase 2c.
  */
 const sharedConditions = {
@@ -44,12 +44,12 @@ const sharedConditions = {
     },
   },
   label: {
-    appliesTo: ["github", "linear"] as const,
+    appliesTo: ["github"] as const,
     validate(c: { value: string[] }) {
       return c.value.length === 0 ? "At least one label required" : null;
     },
     evaluate(c: { operator: string; value: string[] }, event: AutomationEvent) {
-      if (event.source !== "github" && event.source !== "linear") return true;
+      if (event.source !== "github") return true;
       const labels = event.labels;
       if (!labels?.length) return c.operator === "none_of";
       const lowerLabels = labels.map((l) => l.toLowerCase());
@@ -71,12 +71,12 @@ const sharedConditions = {
     },
   },
   actor: {
-    appliesTo: ["github", "linear"] as const,
+    appliesTo: ["github"] as const,
     validate(c: { value: string[] }) {
       return c.value.length === 0 ? "At least one actor required" : null;
     },
     evaluate(c: { operator: string; value: string[] }, event: AutomationEvent) {
-      if (event.source !== "github" && event.source !== "linear") return true;
+      if (event.source !== "github") return true;
       if (!event.actor) return false;
       const lowerActor = event.actor.toLowerCase();
       return c.operator === "include"
@@ -94,16 +94,6 @@ const sharedConditions = {
     evaluate(c: { value: string }, event: AutomationEvent) {
       if (event.source !== "github") return true;
       return event.checkConclusion === c.value;
-    },
-  },
-  linear_status: {
-    appliesTo: ["linear"] as const,
-    validate(c: { value: string[] }) {
-      return c.value.length === 0 ? "At least one status required" : null;
-    },
-    evaluate(c: { value: string[] }, event: AutomationEvent) {
-      if (event.source !== "linear") return true;
-      return event.linearStatus ? c.value.includes(event.linearStatus) : false;
     },
   },
 } satisfies Partial<ConditionRegistry>;

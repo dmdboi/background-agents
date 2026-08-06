@@ -845,11 +845,10 @@ export class SchedulerDO extends DurableObject<Env> {
         break;
       }
       case "github":
-      case "linear":
         candidates = await store.getAutomationsForEvent(
           event.repoOwner,
           event.repoName,
-          event.source === "github" ? "github_event" : "linear_event",
+          "github_event",
           event.eventType
         );
         break;

@@ -19,7 +19,6 @@ export interface UserPreferences {
   updatedAt: number;
 }
 
-const nonEmptyStringSchema = z.string().trim().min(1);
 const sandboxTimeoutMsSchema = z.number().refine(isValidSandboxTimeoutMs);
 
 export const slackCallbackContextSchema = z.object({
@@ -41,45 +40,6 @@ export const slackCallbackContextSchema = z.object({
 
 export type SlackCallbackContext = z.infer<typeof slackCallbackContextSchema>;
 
-const linearCallbackContextBaseSchema = z.strictObject({
-  source: z.literal("linear"),
-  issueId: nonEmptyStringSchema,
-  issueIdentifier: nonEmptyStringSchema,
-  issueUrl: nonEmptyStringSchema,
-  /** Settings repository when one can be resolved for this Linear message. */
-  repoFullName: nonEmptyStringSchema.optional(),
-  model: nonEmptyStringSchema,
-  agentSessionId: nonEmptyStringSchema.optional(),
-  emitToolProgressActivities: z.boolean().optional(),
-});
-
-export const linearCallbackContextSchema = z.union([
-  linearCallbackContextBaseSchema.extend({
-    organizationId: nonEmptyStringSchema,
-    /** Installed Linear app-user identity used to verify runtime credentials. */
-    appUserId: nonEmptyStringSchema,
-    /** Move the issue to its team's started workflow when this message begins processing. */
-    transitionIssueOnStart: z.literal(true),
-  }),
-  linearCallbackContextBaseSchema.extend({
-    organizationId: nonEmptyStringSchema.optional(),
-    appUserId: nonEmptyStringSchema.optional(),
-    transitionIssueOnStart: z.literal(false).optional(),
-  }),
-]);
-
-export type LinearCallbackContext = z.infer<typeof linearCallbackContextSchema>;
-
-export const linearStartCallbackSchema = z.strictObject({
-  sessionId: nonEmptyStringSchema,
-  messageId: nonEmptyStringSchema,
-  timestamp: z.number().refine(Number.isFinite),
-  signature: nonEmptyStringSchema,
-  context: linearCallbackContextSchema,
-});
-
-export type LinearStartCallback = z.infer<typeof linearStartCallbackSchema>;
-
 export const automationCallbackContextSchema = z.object({
   source: z.literal("automation"),
   automationId: z.string(),
@@ -91,7 +51,6 @@ export type AutomationCallbackContext = z.infer<typeof automationCallbackContext
 
 export const callbackContextSchema = z.union([
   slackCallbackContextSchema,
-  linearCallbackContextSchema,
   automationCallbackContextSchema,
 ]);
 

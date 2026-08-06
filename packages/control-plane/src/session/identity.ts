@@ -146,7 +146,7 @@ export async function resolveBrowserGitHubEnrichment(
 export function parseAuthorId(
   authorId: string
 ): { provider: string; providerUserId: string } | null {
-  const match = authorId.match(/^(github|slack|linear):(.+)$/);
+  const match = authorId.match(/^(github|slack):(.+)$/);
   if (!match) return null;
   return { provider: match[1], providerUserId: match[2] };
 }

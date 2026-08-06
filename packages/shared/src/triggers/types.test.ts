@@ -49,11 +49,11 @@ describe("automationEventSchema", () => {
 
   it("rejects optional arrays with non-string values", () => {
     const result = automationEventSchema.safeParse({
-      source: "linear",
+      source: "github",
       eventType: "issue.created",
-      triggerKey: "linear:issue:1",
-      concurrencyKey: "linear:issue:1",
-      contextBlock: "A Linear issue was created.",
+      triggerKey: "github:issue:1",
+      concurrencyKey: "github:issue:1",
+      contextBlock: "A GitHub issue was created.",
       meta: {},
       repoOwner: "acme",
       repoName: "web-app",

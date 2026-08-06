@@ -69,7 +69,7 @@ import type { SlackSessionTarget } from "../targets";
 
 /**
  * Result of target classification. Unlike the shared repo-only
- * `ClassificationResult` (still used by the Linear bot), the Slack bot
+ * `ClassificationResult`, the Slack bot
  * classifies to a {@link SlackSessionTarget} — a repository or a saved
  * environment — because routing rules can name either.
  */

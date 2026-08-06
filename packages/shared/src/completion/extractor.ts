@@ -1,7 +1,7 @@
 /**
  * Extract and aggregate agent response from control-plane events.
  *
- * Shared implementation used by slack-bot, linear-bot, and any future
+ * Shared implementation used by slack-bot and any future
  * consumer that needs to turn raw session events into a structured
  * AgentResponse.
  */

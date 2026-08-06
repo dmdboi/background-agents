@@ -172,8 +172,7 @@ Integrations → Slack → Session Instructions** in the web app. When set, the 
 appended to the first prompt of every new Slack-initiated session as an `## Additional Instructions`
 section — use them for standing guidance such as coding standards, preferred tools, or PR
 conventions. They apply to new sessions only (thread follow-ups continue with the session's existing
-context), are limited to 10,000 characters, and mirror the Linear integration's **Issue Session
-Instructions**.
+context), and are limited to 10,000 characters.
 
 ---
 

@@ -44,7 +44,6 @@ export type MessageStatus = "pending" | "processing" | "completed" | "failed";
 export const messageSourceSchema = z.enum([
   "web",
   "slack",
-  "linear",
   "extension",
   "github",
   "automation",
@@ -54,13 +53,7 @@ export type MessageSource = z.infer<typeof messageSourceSchema>;
 
 export type ParticipantRole = "owner" | "member";
 
-export type SpawnSource =
-  | "user"
-  | "agent"
-  | "automation"
-  | "github-bot"
-  | "linear-bot"
-  | "slack-bot";
+export type SpawnSource = "user" | "agent" | "automation" | "github-bot" | "slack-bot";
 
 export interface SessionParticipant {
   id: string;

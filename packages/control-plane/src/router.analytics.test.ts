@@ -53,7 +53,7 @@ describe("analytics router integration", () => {
 
     const response = await handleRequest(
       await signedServiceRequest("https://test.local/analytics/summary", {
-        service: "linear-bot",
+        service: "github-bot",
       }),
       env as never
     );

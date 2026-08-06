@@ -219,7 +219,6 @@ export default function AutomationDetailPage({ params }: { params: Promise<{ id:
                         sentry: "Sentry Alert",
                         webhook: "Inbound Webhook",
                         github_event: "GitHub Event",
-                        linear_event: "Linear Event",
                         slack_event: "Slack Message",
                       }[automation.triggerType] || automation.triggerType}
                   {automation.eventType && (

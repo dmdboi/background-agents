@@ -557,20 +557,6 @@ describe("Analytics API", () => {
       prCount: 0,
     });
     await seedSession(store, {
-      id: "linear-session",
-      repoOwner: "acme",
-      repoName: "app",
-      scmLogin: null,
-      spawnSource: "linear-bot",
-      status: "failed",
-      createdAt: base + 120_000,
-      updatedAt: base + 121_000,
-      totalCost: 0.25,
-      activeDurationMs: 30_000,
-      messageCount: 2,
-      prCount: 0,
-    });
-    await seedSession(store, {
       id: "github-session",
       repoOwner: "acme",
       repoName: "app",
@@ -615,13 +601,13 @@ describe("Analytics API", () => {
       prCount: 2,
     });
 
-    // Summary should count only the 4 human sessions
+    // Summary should count only the 3 human sessions
     const summaryRes = await serviceFetch("https://test.local/analytics/summary?days=7");
     expect(summaryRes.status).toBe(200);
     const summary = await summaryRes.json<AnalyticsSummaryResponse>();
-    expect(summary.totalSessions).toBe(4);
+    expect(summary.totalSessions).toBe(3);
     expect(summary.activeUsers).toBe(2); // alice + bob (scm_login-based)
-    expect(summary.totalCost).toBe(2.5);
+    expect(summary.totalCost).toBe(2.25);
     expect(summary.totalPrs).toBe(2);
 
     // Breakdown by user should include bot sessions, not agent/automation
@@ -634,10 +620,10 @@ describe("Analytics API", () => {
     const keys = breakdown.entries.map((e) => e.key);
     expect(keys).toContain("alice");
     expect(keys).toContain("bob");
-    expect(keys).toContain("__unknown__"); // slack + linear sessions with no scm_login
+    expect(keys).toContain("__unknown__"); // slack session with no scm_login
 
     const totalBreakdownSessions = breakdown.entries.reduce((n, e) => n + e.sessions, 0);
-    expect(totalBreakdownSessions).toBe(4);
+    expect(totalBreakdownSessions).toBe(3);
   });
 
   it("groups sessions by user_id and shows display name from users table", async () => {

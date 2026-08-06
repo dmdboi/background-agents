@@ -9,7 +9,7 @@ Open-Inspect provides a hosted background coding agent that can:
 
 - Work on tasks in the background while you focus on other things
 - Access full development environments (Node.js, Python, git, browser automation, VS Code)
-- Connect from anywhere — web UI, Slack, GitHub PRs, Linear issues, or webhooks
+- Connect from anywhere — web UI, Slack, GitHub PRs, or webhooks
 - Enable multiplayer sessions where multiple people can collaborate in real time
 - Create PRs with proper commit attribution to the prompting user
 - Run on a schedule — cron jobs, Sentry alerts, and webhook-triggered automations
@@ -76,7 +76,7 @@ built for internal use where all employees are trusted and have access to compan
                                     │     Clients      │
                                     │ ┌──────────────┐ │
                                     │ │  Web / Slack │ │
-                                    │ │ GitHub / Lin.│ │
+                                    │ │    GitHub    │ │
                                     │ │   Webhooks   │ │
                                     │ └──────────────┘ │
                                     └────────┬─────────┘
@@ -117,15 +117,14 @@ sandbox — the control plane's Worker owns the container directly.
 
 ## Packages
 
-| Package                                     | Description                                 |
-| ------------------------------------------- | ------------------------------------------- |
-| [control-plane](packages/control-plane)     | Cloudflare Workers + Durable Objects        |
-| [web](packages/web)                         | Next.js web client                          |
-| [sandbox-runtime](packages/sandbox-runtime) | Shared in-sandbox agent runtime             |
-| [slack-bot](packages/slack-bot)             | Slack integration (sessions from messages)  |
-| [github-bot](packages/github-bot)           | GitHub integration (auto-review, @mention)  |
-| [linear-bot](packages/linear-bot)           | Linear integration (issue → coding session) |
-| [shared](packages/shared)                   | Shared types and utilities                  |
+| Package                                     | Description                                |
+| ------------------------------------------- | ------------------------------------------ |
+| [control-plane](packages/control-plane)     | Cloudflare Workers + Durable Objects       |
+| [web](packages/web)                         | Next.js web client                         |
+| [sandbox-runtime](packages/sandbox-runtime) | Shared in-sandbox agent runtime            |
+| [slack-bot](packages/slack-bot)             | Slack integration (sessions from messages) |
+| [github-bot](packages/github-bot)           | GitHub integration (auto-review, @mention) |
+| [shared](packages/shared)                   | Shared types and utilities                 |
 
 ## Getting Started
 
@@ -212,8 +211,6 @@ Interact with agents from wherever your team already works:
   See [Slack integration](docs/integrations/SLACK.md)
 - **GitHub Bot** — Auto-review on PR open or respond to @mentions in PR comments. Configurable
   per-repo. See [GitHub integration](docs/integrations/GITHUB.md)
-- **Linear Bot** — Mention or assign the agent on an issue to start a coding session, post progress
-  activities, and link the resulting PR. See [Linear integration](docs/integrations/LINEAR.md)
 - **Webhooks** — Trigger sessions from any external system via authenticated HTTP POST
 
 ### Automations

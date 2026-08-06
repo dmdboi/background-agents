@@ -124,7 +124,7 @@ function validateTargetCounts(
   repositoryCount: number,
   environmentCount: number
 ): void {
-  if (triggerType === "github_event" || triggerType === "linear_event") {
+  if (triggerType === "github_event") {
     if (repositoryCount === 0) {
       throw new TargetSelectionError("Repository-scoped triggers require exactly one repository");
     }
@@ -353,7 +353,6 @@ async function handleCreateAutomation(
     "sentry",
     "webhook",
     "github_event",
-    "linear_event",
     "slack_event",
   ];
   if (!validTriggerTypes.includes(triggerType)) {

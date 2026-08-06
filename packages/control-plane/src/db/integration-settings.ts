@@ -12,7 +12,6 @@ import {
   type IntegrationId,
   type IntegrationSettingsMap,
   type GitHubBotSettings,
-  type LinearBotSettings,
   type CodeServerSettings,
   type SlackGlobalSettings,
   type SlackMentionsPolicy,
@@ -299,10 +298,6 @@ export class IntegrationSettingsStore {
       ) as IntegrationSettingsMap[K]["repo"];
     }
 
-    if (integrationId === "linear") {
-      this.validateLinearSettings(settings as LinearBotSettings);
-    }
-
     if (integrationId === "code-server") {
       this.validateCodeServerSettings(settings as CodeServerSettings);
     }
@@ -373,47 +368,6 @@ export class IntegrationSettingsStore {
     }
 
     return settings;
-  }
-
-  private validateLinearSettings(settings: LinearBotSettings): void {
-    this.validateModelAndEffort(settings);
-
-    if (
-      settings.allowUserPreferenceOverride !== undefined &&
-      typeof settings.allowUserPreferenceOverride !== "boolean"
-    ) {
-      throw new IntegrationSettingsValidationError("allowUserPreferenceOverride must be a boolean");
-    }
-
-    if (
-      settings.allowLabelModelOverride !== undefined &&
-      typeof settings.allowLabelModelOverride !== "boolean"
-    ) {
-      throw new IntegrationSettingsValidationError("allowLabelModelOverride must be a boolean");
-    }
-
-    if (
-      settings.emitToolProgressActivities !== undefined &&
-      typeof settings.emitToolProgressActivities !== "boolean"
-    ) {
-      throw new IntegrationSettingsValidationError("emitToolProgressActivities must be a boolean");
-    }
-
-    if (
-      settings.issueSessionInstructions !== undefined &&
-      typeof settings.issueSessionInstructions !== "string"
-    ) {
-      throw new IntegrationSettingsValidationError("issueSessionInstructions must be a string");
-    }
-
-    if (
-      typeof settings.issueSessionInstructions === "string" &&
-      settings.issueSessionInstructions.length > MAX_SESSION_INSTRUCTIONS_LENGTH
-    ) {
-      throw new IntegrationSettingsValidationError(
-        `issueSessionInstructions must be ${MAX_SESSION_INSTRUCTIONS_LENGTH} characters or fewer`
-      );
-    }
   }
 
   private validateCodeServerSettings(settings: CodeServerSettings): void {

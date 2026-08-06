@@ -43,7 +43,7 @@ shows which scope overrode it.
 A session receives **global secrets plus its session target's secrets** — the session target is
 whatever you picked when creating the session:
 
-- **Single repository** (web picker, Slack, GitHub, Linear): global + that repository's secrets.
+- **Single repository** (web picker, Slack, GitHub): global + that repository's secrets.
 - **Environment**: global + that **environment's** secrets only. The repositories inside the
   environment do **not** contribute their repository secrets — environments are curated, so a key
   added to a repository never silently lands in every environment containing it. To reuse a

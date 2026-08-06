@@ -76,7 +76,7 @@ const INSTRUCTIONS_MAX_LENGTH = 15000;
 const INSTRUCTIONS_WARNING_THRESHOLD = Math.floor(INSTRUCTIONS_MAX_LENGTH * 0.9);
 
 function requiresRepositoryContext(triggerType: AutomationTriggerType): boolean {
-  return triggerType === "github_event" || triggerType === "linear_event";
+  return triggerType === "github_event";
 }
 
 const toOption = (tz: string) => ({ value: tz, label: tz.replace(/_/g, " ") });
@@ -387,7 +387,6 @@ export function AutomationForm({ mode, initialValues, onSubmit, submitting }: Au
               sentry: "Sentry Alert",
               webhook: "Inbound Webhook",
               github_event: "GitHub Event",
-              linear_event: "Linear Event",
               slack_event: "Slack Message",
             }[triggerType] || triggerType}
             <span className="text-xs ml-2">(cannot be changed)</span>

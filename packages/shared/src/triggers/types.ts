@@ -9,7 +9,6 @@ import { z } from "zod";
 export type AutomationTriggerType =
   | "schedule"
   | "github_event"
-  | "linear_event"
   | "sentry"
   | "webhook"
   | "slack_event";
@@ -21,7 +20,6 @@ export interface ConditionConfigMap {
   path_glob: { operator: "any_match"; value: string[] };
   actor: { operator: "include" | "exclude"; value: string[] };
   check_conclusion: { operator: "eq"; value: string };
-  linear_status: { operator: "any_of"; value: string[] };
   sentry_project: { operator: "any_of"; value: string[] };
   sentry_level: { operator: "any_of"; value: string[] };
   jsonpath: { operator: "all_match"; value: JsonPathFilter[] };
@@ -57,7 +55,7 @@ export interface TriggerConfig {
 
 // ─── Event Sources ────────────────────────────────────────────────────────────
 
-export type AutomationEventSource = "github" | "linear" | "sentry" | "webhook" | "slack";
+export type AutomationEventSource = "github" | "sentry" | "webhook" | "slack";
 
 /**
  * Maps AutomationTriggerType → AutomationEventSource.
@@ -66,7 +64,6 @@ export type AutomationEventSource = "github" | "linear" | "sentry" | "webhook" |
 export const TRIGGER_TYPE_TO_SOURCE: Partial<Record<AutomationTriggerType, AutomationEventSource>> =
   {
     github_event: "github",
-    linear_event: "linear",
     sentry: "sentry",
     webhook: "webhook",
     slack_event: "slack",
@@ -143,15 +140,6 @@ export interface GitHubAutomationEvent extends BaseAutomationEvent {
   pullRequest?: GitHubPullRequestEventFacts;
 }
 
-export interface LinearAutomationEvent extends BaseAutomationEvent {
-  source: "linear";
-  repoOwner: string;
-  repoName: string;
-  actor?: string;
-  labels?: string[];
-  linearStatus?: string;
-}
-
 export interface SentryAutomationEvent extends BaseAutomationEvent {
   source: "sentry";
   automationId: string;
@@ -183,7 +171,6 @@ export interface SlackAutomationEvent extends BaseAutomationEvent {
 
 export type AutomationEvent =
   | GitHubAutomationEvent
-  | LinearAutomationEvent
   | SentryAutomationEvent
   | WebhookAutomationEvent
   | SlackAutomationEvent;
@@ -224,15 +211,6 @@ export const automationEventSchema = z.discriminatedUnion("source", [
         closedAt: z.number().optional(),
       })
       .optional(),
-  }),
-  z.object({
-    ...baseAutomationEventSchema,
-    source: z.literal("linear"),
-    repoOwner: z.string(),
-    repoName: z.string(),
-    actor: z.string().optional(),
-    labels: z.array(z.string()).optional(),
-    linearStatus: z.string().optional(),
   }),
   z.object({
     ...baseAutomationEventSchema,

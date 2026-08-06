@@ -243,9 +243,6 @@ jobs:
       - name: Run slack-bot tests
         run: npm test -w @open-inspect/slack-bot
 
-      - name: Run linear-bot tests
-        run: npm test -w @open-inspect/linear-bot
-
   test-python-sandbox-runtime:
     name: Test (Python - sandbox-runtime)
     runs-on: ubuntu-latest
@@ -328,8 +325,5 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.OI_GOOGLE_CLIENT_SECRET }}
           SLACK_BOT_TOKEN: ${{ secrets.OI_SLACK_BOT_TOKEN }}
           SLACK_SIGNING_SECRET: ${{ secrets.OI_SLACK_SIGNING_SECRET }}
-          LINEAR_WEBHOOK_SECRET: ${{ secrets.OI_LINEAR_WEBHOOK_SECRET }}
-          LINEAR_CLIENT_SECRET: ${{ secrets.OI_LINEAR_CLIENT_SECRET }}
-          LINEAR_API_KEY: ${{ secrets.OI_LINEAR_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.OI_ANTHROPIC_API_KEY }}
         run: ./scripts/setup.sh

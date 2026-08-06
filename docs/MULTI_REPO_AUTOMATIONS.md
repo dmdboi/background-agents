@@ -101,8 +101,8 @@ Requiring 2+ existed to keep two pipelines apart; that fork no longer exists.
 
 ### Which trigger types support multiple repositories?
 
-Answer: schedule and manual "Trigger Now" only, in v1. Event triggers (GitHub, Linear, Sentry,
-webhook, Slack) stay at 0 or 1 repository.
+Answer: schedule and manual "Trigger Now" only, in v1. Event triggers (GitHub, Sentry, webhook,
+Slack) stay at 0 or 1 repository.
 
 Reasoning: this is a product scope cut, not an implementation limit — nothing in the unified
 pipeline prevents an event invocation from having N children. What is undefined is the product

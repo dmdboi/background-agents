@@ -4,7 +4,7 @@ import { escapeRegExp } from "../regex";
 import { z } from "zod";
 
 /** Third-party integrations, each surfaced as a card in the Integrations settings list. */
-export type IntegrationId = "github" | "linear" | "code-server" | "sandbox" | "slack";
+export type IntegrationId = "github" | "code-server" | "sandbox" | "slack";
 
 /** Enforces the common shape for all integration configurations. */
 export interface IntegrationEntry<
@@ -43,20 +43,10 @@ export interface ScmRepoSettings extends ScmSettings {
   alwaysUseDraftMode: boolean;
 }
 
-/** Overridable behavior settings for the Linear bot. Used at both global (defaults) and per-repo (overrides) levels. */
-export interface LinearBotSettings {
-  model?: string;
-  reasoningEffort?: string;
-  allowUserPreferenceOverride?: boolean;
-  allowLabelModelOverride?: boolean;
-  emitToolProgressActivities?: boolean;
-  issueSessionInstructions?: string;
-}
-
 /**
- * Maximum length of a custom session-instructions value (Linear
- * `issueSessionInstructions`, Slack `sessionInstructions`). Bounds the
- * settings blob and the prompt section built from it.
+ * Maximum length of a custom session-instructions value (Slack
+ * `sessionInstructions`). Bounds the settings blob and the prompt section
+ * built from it.
  */
 export const MAX_SESSION_INSTRUCTIONS_LENGTH = 10000;
 
@@ -353,7 +343,7 @@ export function matchRoutingRules(message: string, rules: SlackRoutingRule[]): S
  * Integrations that accept environment-level setting overrides — the top layer
  * of the resolution chain (global defaults → primary-repo overrides →
  * environment overrides). Limited to the settings the session-scoped
- * resolution consumes; bot-scoped integrations (github, linear) resolve from
+ * resolution consumes; bot-scoped integrations (github) resolve from
  * the trigger repo before a session exists, and slack is global/per-repo only.
  * The environment-level shape is the integration's repo (override) shape.
  */
@@ -365,7 +355,6 @@ export type EnvironmentSettingsIntegrationId =
 /** Maps each integration ID to its global and per-repo settings types. */
 export interface IntegrationSettingsMap {
   github: IntegrationEntry<GitHubBotSettings>;
-  linear: IntegrationEntry<LinearBotSettings>;
   "code-server": IntegrationEntry<CodeServerSettings>;
   sandbox: IntegrationEntry<SandboxSettings>;
   slack: IntegrationEntry<SlackRepoSettings, SlackGlobalSettings>;
@@ -374,7 +363,6 @@ export interface IntegrationSettingsMap {
 
 /** Derived type for the GitHub bot global config. */
 export type GitHubGlobalConfig = IntegrationSettingsMap["github"]["global"];
-export type LinearGlobalConfig = IntegrationSettingsMap["linear"]["global"];
 export type CodeServerGlobalConfig = IntegrationSettingsMap["code-server"]["global"];
 export type SandboxGlobalConfig = IntegrationSettingsMap["sandbox"]["global"];
 export type ScmGlobalConfig = IntegrationSettingsMap["scm"]["global"];
@@ -415,11 +403,6 @@ export const INTEGRATION_DEFINITIONS: {
     id: "github",
     name: "GitHub Bot",
     description: "Automated PR reviews and comment-triggered actions",
-  },
-  {
-    id: "linear",
-    name: "Linear Agent",
-    description: "Issue-driven coding sessions from Linear agent mentions",
   },
   {
     id: "code-server",

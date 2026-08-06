@@ -53,16 +53,6 @@ describe("Integration settings API", () => {
     });
   });
 
-  describe("GET /integration-settings/linear", () => {
-    it("returns null settings when unconfigured", async () => {
-      const response = await serviceFetch("https://test.local/integration-settings/linear");
-      expect(response.status).toBe(200);
-      const body = await response.json<{ integrationId: string; settings: unknown }>();
-      expect(body.integrationId).toBe("linear");
-      expect(body.settings).toBeNull();
-    });
-  });
-
   describe("PUT + GET global round-trip", () => {
     it("saves and retrieves global settings", async () => {
       const putRes = await serviceFetch("https://test.local/integration-settings/github", {
@@ -333,79 +323,6 @@ describe("Integration settings API", () => {
         };
       }>();
       expect(body.config.allowedTriggerUsers).toEqual(["carol"]);
-    });
-
-    it("returns linear resolved config with merged defaults", async () => {
-      await serviceFetch("https://test.local/integration-settings/linear", {
-        method: "PUT",
-        body: JSON.stringify({
-          settings: {
-            enabledRepos: ["acme/widgets"],
-            defaults: {
-              model: "anthropic/claude-sonnet-4-6",
-              reasoningEffort: "high",
-              allowUserPreferenceOverride: true,
-              allowLabelModelOverride: true,
-              emitToolProgressActivities: true,
-            },
-          },
-        }),
-      });
-
-      await serviceFetch("https://test.local/integration-settings/linear/repos/acme/widgets", {
-        method: "PUT",
-        body: JSON.stringify({
-          settings: {
-            allowUserPreferenceOverride: false,
-          },
-        }),
-      });
-
-      const res = await serviceFetch(
-        "https://test.local/integration-settings/linear/resolved/acme/widgets"
-      );
-      expect(res.status).toBe(200);
-      const body = await res.json<{
-        config: {
-          model: string;
-          reasoningEffort: string;
-          allowUserPreferenceOverride: boolean;
-          allowLabelModelOverride: boolean;
-          emitToolProgressActivities: boolean;
-          enabledRepos: string[] | null;
-        };
-      }>();
-
-      expect(body.config.model).toBe("anthropic/claude-sonnet-4-6");
-      expect(body.config.reasoningEffort).toBe("high");
-      expect(body.config.allowUserPreferenceOverride).toBe(false);
-      expect(body.config.allowLabelModelOverride).toBe(true);
-      expect(body.config.emitToolProgressActivities).toBe(true);
-      expect(body.config.enabledRepos).toEqual(["acme/widgets"]);
-    });
-
-    it("returns linear defaults when unconfigured", async () => {
-      const res = await serviceFetch(
-        "https://test.local/integration-settings/linear/resolved/acme/widgets"
-      );
-      expect(res.status).toBe(200);
-      const body = await res.json<{
-        config: {
-          model: string | null;
-          reasoningEffort: string | null;
-          allowUserPreferenceOverride: boolean;
-          allowLabelModelOverride: boolean;
-          emitToolProgressActivities: boolean;
-          enabledRepos: string[] | null;
-        };
-      }>();
-
-      expect(body.config.model).toBeNull();
-      expect(body.config.reasoningEffort).toBeNull();
-      expect(body.config.allowUserPreferenceOverride).toBe(true);
-      expect(body.config.allowLabelModelOverride).toBe(true);
-      expect(body.config.emitToolProgressActivities).toBe(true);
-      expect(body.config.enabledRepos).toBeNull();
     });
 
     it("returns code-server resolved config with defaults when unconfigured", async () => {

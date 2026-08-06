@@ -124,7 +124,6 @@
   // -------------------------------------------------------------------------
   "services": [
     { "binding": "SLACK_BOT", "service": "open-inspect-slack-bot" },
-    { "binding": "LINEAR_BOT", "service": "open-inspect-linear-bot" },
   ],
 
   // -------------------------------------------------------------------------
@@ -169,7 +168,6 @@
   //   SERVICE_AUTH_SECRET_WEB
   //   SERVICE_AUTH_SECRET_SLACK_BOT
   //   SERVICE_AUTH_SECRET_GITHUB_BOT
-  //   SERVICE_AUTH_SECRET_LINEAR_BOT
   //
   // Operator-supplied (real credentials — scripts/setup.sh prompts for these):
   //   GITHUB_APP_ID

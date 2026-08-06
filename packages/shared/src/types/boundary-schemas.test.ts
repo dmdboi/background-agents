@@ -293,17 +293,6 @@ describe("boundary schemas", () => {
       ).toBe(true);
       expect(
         callbackContextSchema.safeParse({
-          source: "linear",
-          issueId: "issue-1",
-          issueIdentifier: "OI-123",
-          issueUrl: "https://linear.app/open-inspect/issue/OI-123/test",
-          repoFullName: "open-inspect/background-agents",
-          model: "anthropic/claude-sonnet-4-6",
-          transitionIssueOnStart: false,
-        }).success
-      ).toBe(true);
-      expect(
-        callbackContextSchema.safeParse({
           source: "automation",
           automationId: "automation-1",
           runId: "run-1",

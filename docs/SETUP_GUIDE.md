@@ -173,7 +173,6 @@ npm test -w @open-inspect/web
 # Bots
 npm test -w @open-inspect/github-bot
 npm test -w @open-inspect/slack-bot
-npm test -w @open-inspect/linear-bot
 ```
 
 ### Python (`sandbox-runtime`) workflow
@@ -234,7 +233,6 @@ The sandbox container failed to start or the `containers`/`durable_objects` bind
 - Architecture and internals: [docs/HOW_IT_WORKS.md](./HOW_IT_WORKS.md)
 - Full production deployment: [docs/GETTING_STARTED.md](./GETTING_STARTED.md)
 - GitHub integration usage: [docs/integrations/GITHUB.md](./integrations/GITHUB.md)
-- Linear integration usage: [docs/integrations/LINEAR.md](./integrations/LINEAR.md)
 - Debugging and observability: [docs/DEBUGGING_PLAYBOOK.md](./DEBUGGING_PLAYBOOK.md)
 - Available models: [docs/AVAILABLE_MODELS.md](./AVAILABLE_MODELS.md)
 - OpenAI model setup: [docs/OPENAI_MODELS.md](./OPENAI_MODELS.md)

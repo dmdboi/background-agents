@@ -36,7 +36,6 @@ function describeTrigger(automation: Automation): string {
     sentry: "Sentry alert",
     webhook: "Inbound webhook",
     github_event: "GitHub event",
-    linear_event: "Linear event",
   };
 
   const label = TRIGGER_LABELS[automation.triggerType] || automation.triggerType;

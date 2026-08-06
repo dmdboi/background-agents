@@ -69,9 +69,7 @@ Slack sessions can target an environment three ways: a routing rule (Settings �
 Slack) launches it from a keyword; a channel association (`channelAssociations` on the environments
 API, like repository metadata) routes messages in that channel to it automatically; and the LLM
 classifier considers environments alongside repositories, using their names and descriptions as
-signals — its clarification picker lists both kinds when it has to ask. Linear sessions can target
-an environment through the team and project mappings (`{"environmentId": "env_…"}` entries alongside
-repository entries).
+signals — its clarification picker lists both kinds when it has to ask.
 
 ### Session Lifecycle
 
@@ -224,7 +222,6 @@ can make HTTP requests and maintain WebSocket connections can participate.
 - **Slack**: Bot that responds to @mentions and direct messages, forwards supported image
   attachments, classifies repos, and posts results
 - **GitHub**: Bot that reviews PRs and responds to PR `@mentions`
-- **Linear**: Agent workflow that starts sessions from Linear issue activity
 
 All clients see the same session state. Send a prompt from Slack or GitHub, watch the results on
 web. This works because state lives in the control plane, not the client.

@@ -74,7 +74,7 @@ describe("SCM credentials router provider gate", () => {
     const response = await handleRequest(
       await signedServiceRequest("https://test.local/sessions/session-1/scm-credentials", {
         method: "POST",
-        service: "linear-bot",
+        service: "github-bot",
       }),
       env as never
     );
@@ -90,7 +90,7 @@ describe("SCM credentials router provider gate", () => {
 
     const response = await handleRequest(
       await signedServiceRequest("https://test.local/sessions/session-1/tunnel-urls", {
-        service: "linear-bot",
+        service: "github-bot",
       }),
       env as never
     );
@@ -140,7 +140,7 @@ describe("SCM credentials router provider gate", () => {
     const response = await handleRequest(
       await signedServiceRequest("https://test.local/sessions/session-1/pr", {
         method: "POST",
-        service: "linear-bot",
+        service: "github-bot",
       }),
       env as never
     );

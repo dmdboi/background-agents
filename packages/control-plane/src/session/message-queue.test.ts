@@ -128,7 +128,6 @@ function buildQueue() {
 
   const callbackService = {
     notifyComplete: vi.fn(async () => {}),
-    notifyStarted: vi.fn(async () => {}),
   };
 
   const broadcast = vi.fn((_message: ServerMessage) => {});
@@ -197,7 +196,6 @@ describe("SessionMessageQueue", () => {
     expect(h.broadcast).toHaveBeenCalledWith({ type: "sandbox_spawning" });
     expect(h.sandboxLifecycle.spawnSandbox).toHaveBeenCalledTimes(1);
     expect(h.repository.updateMessageToProcessing).not.toHaveBeenCalled();
-    expect(h.callbackService.notifyStarted).not.toHaveBeenCalled();
   });
 
   it("does not block queue processing on the sandbox spawn", async () => {
@@ -535,30 +533,6 @@ describe("SessionMessageQueue", () => {
         },
       }),
     ]);
-  });
-
-  it("notifies the integration after a prompt is dispatched to the sandbox", async () => {
-    const h = buildQueue();
-    const sandboxWs = { readyState: 1 } as WebSocket;
-    h.repository.getNextPendingMessage.mockReturnValue(createMessage({ id: "msg-linear" }));
-    h.wsManager.getSandboxSocket.mockReturnValue(sandboxWs);
-
-    await h.queue.processMessageQueue();
-
-    expect(h.callbackService.notifyStarted).toHaveBeenCalledWith("msg-linear");
-    expect(h.waitUntil).toHaveBeenCalledOnce();
-  });
-
-  it("does not notify the integration when sandbox dispatch fails", async () => {
-    const h = buildQueue();
-    h.repository.getNextPendingMessage.mockReturnValue(createMessage({ id: "msg-failed" }));
-    h.wsManager.getSandboxSocket.mockReturnValue({ readyState: 1 } as WebSocket);
-    h.wsManager.send.mockReturnValue(false);
-
-    await h.queue.processMessageQueue();
-
-    expect(h.callbackService.notifyStarted).not.toHaveBeenCalled();
-    expect(h.waitUntil).not.toHaveBeenCalled();
   });
 
   describe("execution timeout scheduling", () => {

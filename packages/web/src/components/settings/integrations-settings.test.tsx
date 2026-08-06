@@ -18,7 +18,6 @@ describe("IntegrationsSettings", () => {
 
     expect(container.querySelector('a[href="/settings/integrations/sandbox"]')).toBeNull();
     expect(screen.getByRole("link", { name: /github bot/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /linear agent/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /code server/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /slack/i })).toBeInTheDocument();
   });

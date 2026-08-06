@@ -9,7 +9,6 @@ import {
   type EnvironmentSettingsIntegrationId,
   type GitHubBotSettings,
   type IntegrationId,
-  type LinearBotSettings,
   type SandboxSettings,
 } from "@open-inspect/shared/types/integrations";
 import { isValidReasoningEffort } from "@open-inspect/shared/models";
@@ -408,30 +407,6 @@ async function handleGetResolvedConfig(
         allowedTriggerUsers: githubSettings.allowedTriggerUsers ?? null,
         codeReviewInstructions: githubSettings.codeReviewInstructions ?? null,
         commentActionInstructions: githubSettings.commentActionInstructions ?? null,
-      },
-    });
-  }
-
-  if (id === "linear") {
-    const linearSettings = settings as LinearBotSettings;
-    const linearReasoningEffort =
-      linearSettings.model &&
-      linearSettings.reasoningEffort &&
-      !isValidReasoningEffort(linearSettings.model, linearSettings.reasoningEffort)
-        ? null
-        : (linearSettings.reasoningEffort ?? null);
-
-    return json({
-      integrationId: id,
-      repo,
-      config: {
-        model: linearSettings.model ?? null,
-        reasoningEffort: linearReasoningEffort,
-        allowUserPreferenceOverride: linearSettings.allowUserPreferenceOverride ?? true,
-        allowLabelModelOverride: linearSettings.allowLabelModelOverride ?? true,
-        emitToolProgressActivities: linearSettings.emitToolProgressActivities ?? true,
-        issueSessionInstructions: linearSettings.issueSessionInstructions ?? null,
-        enabledRepos,
       },
     });
   }

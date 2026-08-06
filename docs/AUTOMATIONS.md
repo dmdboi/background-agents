@@ -13,7 +13,6 @@ Trigger types:
 | **Sentry Alert**    | Trigger from a Sentry Custom Integration  | Available          |
 | **Slack Message**   | Trigger on messages in watched channels   | Available (opt-in) |
 | **GitHub Event**    | Trigger on GitHub activity                | Planned            |
-| **Linear Event**    | Trigger on Linear activity                | Planned            |
 
 Common use cases include nightly dependency updates, reacting to deploy or incident events, triaging
 new Sentry issues, and recurring report generation.

@@ -8,7 +8,6 @@ export type {
   AutomationEvent,
   GitHubAutomationEvent,
   GitHubPullRequestEventFacts,
-  LinearAutomationEvent,
   SentryAutomationEvent,
   WebhookAutomationEvent,
   SlackAutomationEvent,

@@ -180,8 +180,6 @@ export type {
 export {
   automationCallbackContextSchema,
   callbackContextSchema,
-  linearCallbackContextSchema,
-  linearStartCallbackSchema,
   sendPromptRequestSchema,
   slackCallbackContextSchema,
   createSessionRequestSchema,
@@ -196,8 +194,6 @@ export {
 export type {
   UserPreferences,
   SlackCallbackContext,
-  LinearCallbackContext,
-  LinearStartCallback,
   AutomationCallbackContext,
   CallbackContext,
   SendPromptRequest,

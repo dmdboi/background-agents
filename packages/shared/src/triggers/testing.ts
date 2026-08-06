@@ -8,7 +8,6 @@ import type {
   SentryAutomationEvent,
   WebhookAutomationEvent,
   GitHubAutomationEvent,
-  LinearAutomationEvent,
   SlackAutomationEvent,
 } from "./types";
 import { matchesConditions } from "./conditions";
@@ -30,17 +29,6 @@ const defaults: Record<AutomationEventSource, () => AutomationEvent> = {
       repoOwner: "test-owner",
       repoName: "test-repo",
     }) as GitHubAutomationEvent,
-  linear: () =>
-    ({
-      source: "linear",
-      eventType: "issue.created",
-      triggerKey: "linear_issue:abc",
-      concurrencyKey: "linear_issue:abc",
-      contextBlock: "Test Linear context",
-      meta: {},
-      repoOwner: "test-owner",
-      repoName: "test-repo",
-    }) as LinearAutomationEvent,
   sentry: () =>
     ({
       source: "sentry",

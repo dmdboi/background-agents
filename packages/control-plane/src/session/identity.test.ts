@@ -93,13 +93,6 @@ describe("parseAuthorId", () => {
     });
   });
 
-  it("parses linear authorId", () => {
-    expect(parseAuthorId("linear:abc-def")).toEqual({
-      provider: "linear",
-      providerUserId: "abc-def",
-    });
-  });
-
   it("returns null for plain user ID (web client)", () => {
     expect(parseAuthorId("user-id-123")).toBeNull();
   });

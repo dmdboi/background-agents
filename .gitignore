@@ -98,3 +98,6 @@ terraform/environments/production/.terraform*
 # Auto-generated secrets cache from scripts/setup.sh (idempotency store —
 # do not commit, do not share between environments).
 .secrets
+
+# Operator credential scratch file — never commit.
+tokens.md
