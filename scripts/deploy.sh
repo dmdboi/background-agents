@@ -41,10 +41,19 @@ npm run build -w @open-inspect/github-bot
 (cd packages/github-bot && $WRANGLER deploy)
 
 echo "Building and deploying web..."
-echo "  (NEXT_PUBLIC_* vars are inlined at build time — see comment in"
-echo "  packages/web/wrangler.toml. Export them before this script if you"
-echo "  need non-default values; falling back to wrangler.toml's [vars] here.)"
+echo "  (NEXT_PUBLIC_* vars must be inlined at build time — see comment in"
+echo "  packages/web/wrangler.toml. Reading them from that file's [vars] block"
+echo "  now so the build picks up the real values, not source-level defaults.)"
 npm run build -w @open-inspect/shared
+
+WEB_WRANGLER_TOML="$REPO_ROOT/packages/web/wrangler.toml"
+while IFS='=' read -r key value; do
+  key="$(echo "$key" | xargs)"
+  value="$(echo "$value" | xargs)"
+  export "$key=$value"
+  echo "  $key=$value"
+done < <(grep -E '^NEXT_PUBLIC_[A-Z_]+ *= *"' "$WEB_WRANGLER_TOML" | sed -E 's/^([A-Z_]+) *= *"([^"]*)"/\1=\2/')
+
 npm run build:cloudflare -w @open-inspect/web
 (cd packages/web && npx opennextjs-cloudflare deploy)
 

@@ -8,16 +8,17 @@
 # IMPORTANT — build-time vs deploy-time vars:
 # NEXT_PUBLIC_* vars are inlined into the client bundle by Next.js at BUILD
 # time (`npm run build:cloudflare`), not read at request time like the
-# [vars] below. Export them in the shell before building, e.g.:
+# [vars] below. scripts/deploy.sh parses the NEXT_PUBLIC_* entries out of
+# this file's [vars] block and exports them before invoking the build, so
+# this file is the single source of truth for both build-time and
+# deploy-time values. If you build web manually (not via deploy.sh), export
+# them yourself first, e.g.:
 #   NEXT_PUBLIC_WS_URL=wss://open-inspect-control-plane.YOUR-SUBDOMAIN.workers.dev \
 #   NEXT_PUBLIC_SANDBOX_PROVIDER=cloudflare \
 #   NEXT_PUBLIC_APP_NAME="Open-Inspect" \
 #   NEXT_PUBLIC_APP_SHORT_NAME="Open-Inspect" \
 #   NEXT_PUBLIC_APP_ICON_URL="" \
 #   npm run build:cloudflare -w @open-inspect/web
-# scripts/setup.sh sets these before invoking the build for you; this file
-# is the config `wrangler`/`opennextjs-cloudflare` reads once the bundle
-# already exists.
 #
 # For local dev, change `name` back to the "-local" suffix and the service
 # binding target to match your local control-plane worker name.
